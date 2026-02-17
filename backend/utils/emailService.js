@@ -1,14 +1,6 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, // Use TLS instead of SSL
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD
-  }
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -17,11 +9,12 @@ function generateOTP() {
 async function sendOTPEmail(email, otp) {
   try {
     console.log('Attempting to send OTP to:', email);
-    console.log('Gmail user:', process.env.GMAIL_USER ? 'SET' : 'NOT SET');
-    console.log('Gmail password:', process.env.GMAIL_APP_PASSWORD ? 'SET' : 'NOT SET');
+    console.log('Resend API key:', process.env.RESEND_API_KEY ? 'SET' : 'NOT SET');
 
-    const mailOptions = {
-      from: process.env.GMAIL_USER,
+    console.log('Sending OTP email via Resend...');
+    
+    const result = await resend.emails.send({
+      from: 'Ecofy <onboarding@resend.dev>',
       to: email,
       subject: 'Ecofy - Password Reset OTP',
       html: `
@@ -31,11 +24,15 @@ async function sendOTPEmail(email, otp) {
         <p>This OTP will expire in 10 minutes.</p>
         <p>If you didn't request this, please ignore this email.</p>
       `
-    };
+    });
 
-    console.log('Sending email...');
-    await transporter.sendMail(mailOptions);
+    if (result.error) {
+      console.error('Resend error:', result.error);
+      return false;
+    }
+
     console.log('Email sent successfully to:', email);
+    console.log('Email ID:', result.data?.id);
     return true;
   } catch (err) {
     console.error('Error sending email:', err.message);

@@ -24,3 +24,18 @@ export type LoginResponse = {
   email: string;
   token?: string;
 };
+
+export type ForgotPasswordPayload = {
+  email: string;
+};
+
+export type VerifyOTPPayload = {
+  email: string;
+  otp: string;
+};
+
+export type ResetPasswordPayload = {
+  email: string;
+  otp: string;
+  newPassword: string;
+};

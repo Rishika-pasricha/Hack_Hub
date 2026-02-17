@@ -1,5 +1,5 @@
 import { apiRequest } from "./api";
-import { RegisterPayload, RegisterResponse, LoginPayload, LoginResponse } from "../types/auth";
+import { RegisterPayload, RegisterResponse, LoginPayload, LoginResponse, ForgotPasswordPayload, VerifyOTPPayload, ResetPasswordPayload } from "../types/auth";
 
 export function registerUser(payload: RegisterPayload) {
   return apiRequest<RegisterResponse>("/register", {
@@ -10,6 +10,27 @@ export function registerUser(payload: RegisterPayload) {
 
 export function loginUser(payload: LoginPayload) {
   return apiRequest<LoginResponse>("/login", {
+    method: "POST",
+    body: payload
+  });
+}
+
+export function sendForgotPasswordOTP(payload: ForgotPasswordPayload) {
+  return apiRequest<{ message: string }>("/forgot-password", {
+    method: "POST",
+    body: payload
+  });
+}
+
+export function verifyOTP(payload: VerifyOTPPayload) {
+  return apiRequest<{ message: string; verified: boolean }>("/verify-otp", {
+    method: "POST",
+    body: payload
+  });
+}
+
+export function resetPassword(payload: ResetPasswordPayload) {
+  return apiRequest<{ message: string }>("/reset-password", {
     method: "POST",
     body: payload
   });

@@ -1,7 +1,9 @@
 const nodemailer = require('nodemailer');
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // Use TLS instead of SSL
   auth: {
     user: process.env.GMAIL_USER,
     pass: process.env.GMAIL_APP_PASSWORD
@@ -14,6 +16,10 @@ function generateOTP() {
 
 async function sendOTPEmail(email, otp) {
   try {
+    console.log('Attempting to send OTP to:', email);
+    console.log('Gmail user:', process.env.GMAIL_USER ? 'SET' : 'NOT SET');
+    console.log('Gmail password:', process.env.GMAIL_APP_PASSWORD ? 'SET' : 'NOT SET');
+
     const mailOptions = {
       from: process.env.GMAIL_USER,
       to: email,
@@ -27,10 +33,13 @@ async function sendOTPEmail(email, otp) {
       `
     };
 
+    console.log('Sending email...');
     await transporter.sendMail(mailOptions);
+    console.log('Email sent successfully to:', email);
     return true;
   } catch (err) {
     console.error('Error sending email:', err.message);
+    console.error('Full error:', err);
     return false;
   }
 }

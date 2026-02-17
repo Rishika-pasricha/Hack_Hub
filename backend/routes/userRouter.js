@@ -66,6 +66,8 @@ router.post('/login', async (req, res) => {
 router.post('/forgot-password', async (req, res) => {
     const { email } = req.body;
 
+    console.log('Forgot password request for:', email);
+
     if (!email) {
         return res.status(400).json({ error: 'Email is required' });
     }
@@ -82,16 +84,23 @@ router.post('/forgot-password', async (req, res) => {
         const otp = generateOTP();
         const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
 
+        console.log('Generated OTP:', otp);
+
         await usermodel.updateOne(
             { email: normalizedEmail },
             { otp, otpExpiry }
         );
 
+        console.log('OTP saved to database');
+
         const emailSent = await sendOTPEmail(email, otp);
         
         if (!emailSent) {
+            console.log('Failed to send email');
             return res.status(500).json({ error: 'Failed to send OTP email' });
         }
+
+        console.log('OTP email sent successfully');
 
         return res.status(200).json({ message: 'OTP sent to your email' });
     } catch (err) {

@@ -9,11 +9,13 @@ import {
   View
 } from "react-native";
 import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { PrimaryButton } from "../../components/ui/PrimaryButton";
 import { TextField } from "../../components/ui/TextField";
 import { colors, spacing, typography } from "../../constants/theme";
 import { getMunicipalityByDistrict, submitBlog, submitIssue } from "../../services/community";
 import { MunicipalityInfo } from "../../types/community";
+import { useAuth } from "../../context/AuthContext";
 
 type Coordinates = { latitude: number; longitude: number };
 
@@ -38,6 +40,7 @@ function getCurrentPosition(): Promise<Coordinates> {
 
 export default function SettingsTab() {
   const router = useRouter();
+  const { user, fullName, logout } = useAuth();
   const [municipality, setMunicipality] = useState<MunicipalityInfo | null>(null);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
@@ -46,15 +49,11 @@ export default function SettingsTab() {
   const [districtInput, setDistrictInput] = useState("");
 
   const [issueForm, setIssueForm] = useState({
-    userName: "",
-    userEmail: "",
     subject: "",
     description: ""
   });
 
   const [blogForm, setBlogForm] = useState({
-    authorName: "",
-    authorEmail: "",
     title: "",
     content: ""
   });
@@ -122,27 +121,32 @@ export default function SettingsTab() {
 
   const handleIssueSubmit = async () => {
     setIssueMessage(null);
+    if (!user) {
+      setIssueMessage("Please login first");
+      router.replace("/login");
+      return;
+    }
 
     if (!municipality?.contactEmail) {
       setIssueMessage("Please detect your municipality in Settings first");
       return;
     }
 
-    if (!issueForm.userName || !issueForm.userEmail || !issueForm.subject || !issueForm.description) {
+    if (!fullName || !user.email || !issueForm.subject || !issueForm.description) {
       setIssueMessage("Fill all issue form fields");
       return;
     }
 
     try {
       await submitIssue({
-        userName: issueForm.userName,
-        userEmail: issueForm.userEmail.toLowerCase(),
+        userName: fullName,
+        userEmail: user.email.toLowerCase(),
         subject: issueForm.subject,
         description: issueForm.description,
         municipalityEmail: municipality.contactEmail
       });
       setIssueMessage("Issue submitted to municipality");
-      setIssueForm({ userName: "", userEmail: "", subject: "", description: "" });
+      setIssueForm({ subject: "", description: "" });
     } catch (err: any) {
       setIssueMessage(err.message || "Failed to submit issue");
     }
@@ -150,33 +154,39 @@ export default function SettingsTab() {
 
   const handleBlogSubmit = async () => {
     setBlogMessage(null);
+    if (!user) {
+      setBlogMessage("Please login first");
+      router.replace("/login");
+      return;
+    }
 
     if (!municipality?.contactEmail) {
       setBlogMessage("Please detect your municipality in Settings first");
       return;
     }
 
-    if (!blogForm.authorName || !blogForm.authorEmail || !blogForm.title || !blogForm.content) {
+    if (!fullName || !user.email || !blogForm.title || !blogForm.content) {
       setBlogMessage("Fill all blog form fields");
       return;
     }
 
     try {
       await submitBlog({
-        authorName: blogForm.authorName,
-        authorEmail: blogForm.authorEmail.toLowerCase(),
+        authorName: fullName,
+        authorEmail: user.email.toLowerCase(),
         title: blogForm.title,
         content: blogForm.content,
         municipalityEmail: municipality.contactEmail
       });
       setBlogMessage("Blog submitted for municipality approval");
-      setBlogForm({ authorName: "", authorEmail: "", title: "", content: "" });
+      setBlogForm({ title: "", content: "" });
     } catch (err: any) {
       setBlogMessage(err.message || "Failed to submit blog");
     }
   };
 
   return (
+    <SafeAreaView style={styles.container}>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Settings</Text>
 
@@ -213,17 +223,9 @@ export default function SettingsTab() {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Submit Civic Issue</Text>
-        <TextField
-          label="Your Name"
-          value={issueForm.userName}
-          onChangeText={(value) => setIssueForm((prev) => ({ ...prev, userName: value }))}
-        />
-        <TextField
-          label="Your Email"
-          value={issueForm.userEmail}
-          onChangeText={(value) => setIssueForm((prev) => ({ ...prev, userEmail: value }))}
-          keyboardType="email-address"
-        />
+        <Text style={styles.hint}>
+          Submitting as: {fullName || "Unknown User"} ({user?.email || "No email"})
+        </Text>
         <TextField
           label="Subject"
           value={issueForm.subject}
@@ -245,17 +247,9 @@ export default function SettingsTab() {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Submit Blog / Article</Text>
         <Text style={styles.hint}>This goes to your municipality dashboard for approval first.</Text>
-        <TextField
-          label="Author Name"
-          value={blogForm.authorName}
-          onChangeText={(value) => setBlogForm((prev) => ({ ...prev, authorName: value }))}
-        />
-        <TextField
-          label="Author Email"
-          value={blogForm.authorEmail}
-          onChangeText={(value) => setBlogForm((prev) => ({ ...prev, authorEmail: value }))}
-          keyboardType="email-address"
-        />
+        <Text style={styles.hint}>
+          Author: {fullName || "Unknown User"} ({user?.email || "No email"})
+        </Text>
         <TextField
           label="Title"
           value={blogForm.title}
@@ -276,9 +270,16 @@ export default function SettingsTab() {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Account</Text>
-        <PrimaryButton label="Logout" onPress={() => router.replace("/login")} />
+        <PrimaryButton
+          label="Logout"
+          onPress={() => {
+            logout();
+            router.replace("/login");
+          }}
+        />
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 

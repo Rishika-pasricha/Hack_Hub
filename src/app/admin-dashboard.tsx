@@ -1,23 +1,25 @@
 import { useEffect, useState } from "react";
 import { StyleSheet, Text, View, ScrollView } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { PrimaryButton } from "../components/ui/PrimaryButton";
-import { TextField } from "../components/ui/TextField";
 import { colors, spacing, typography } from "../constants/theme";
 import { approveBlogForAdmin, getIssuesForAdmin, getPendingBlogsForAdmin } from "../services/community";
 import { BlogPost, Issue } from "../types/community";
+import { useAuth } from "../context/AuthContext";
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ municipalityEmail?: string }>();
-  const [municipalityEmail, setMunicipalityEmail] = useState(params.municipalityEmail || "");
+  const { user, logout, isHydrated } = useAuth();
+  const municipalityEmail = user?.email || "";
   const [pendingBlogs, setPendingBlogs] = useState<BlogPost[]>([]);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const handleLogout = () => {
-    router.push("/login");
+    logout();
+    router.replace("/login");
   };
 
   const loadData = async () => {
@@ -54,12 +56,26 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    if (municipalityEmail) {
-      loadData();
+    if (!isHydrated) {
+      return;
     }
-  }, []);
+    if (!user) {
+      router.replace("/login");
+      return;
+    }
+    if (user.role !== "admin") {
+      router.replace("/blogs");
+      return;
+    }
+    loadData();
+  }, [user, isHydrated]);
+
+  if (!isHydrated || !user || user.role !== "admin") {
+    return null;
+  }
 
   return (
+    <SafeAreaView style={styles.container}>
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Municipality Admin Dashboard</Text>
@@ -69,12 +85,7 @@ export default function AdminDashboard() {
       <View style={styles.content}>
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Municipality Context</Text>
-          <TextField
-            label="Municipality Email"
-            value={municipalityEmail}
-            onChangeText={setMunicipalityEmail}
-            keyboardType="email-address"
-          />
+          <Text style={styles.cardMeta}>{municipalityEmail || "No municipality email found in session"}</Text>
           <PrimaryButton label={loading ? "Loading..." : "Refresh Data"} onPress={loadData} disabled={loading} />
           {message ? <Text style={styles.message}>{message}</Text> : null}
         </View>
@@ -111,6 +122,7 @@ export default function AdminDashboard() {
         <PrimaryButton label="Logout" onPress={handleLogout} />
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 

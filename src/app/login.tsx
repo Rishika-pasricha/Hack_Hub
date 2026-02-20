@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -8,12 +8,14 @@ import {
   View
 } from "react-native";
 import { useRouter, Link } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { PrimaryButton } from "../components/ui/PrimaryButton";
 import { TextField } from "../components/ui/TextField";
 import { colors, spacing, typography } from "../constants/theme";
 import { loginUser } from "../services/auth";
 import { LoginPayload } from "../types/auth";
 import { validateLogin } from "../utils/validators";
+import { useAuth } from "../context/AuthContext";
 
 const initialValues: LoginPayload = {
   email: "",
@@ -22,6 +24,7 @@ const initialValues: LoginPayload = {
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { setUser, user, isHydrated } = useAuth();
   const [values, setValues] = useState<LoginPayload>(initialValues);
   const [errors, setErrors] = useState<Partial<LoginPayload>>({});
   const [loading, setLoading] = useState(false);
@@ -30,6 +33,17 @@ export default function LoginScreen() {
   const updateField = (key: keyof LoginPayload, value: string) => {
     setValues((prev) => ({ ...prev, [key]: value }));
   };
+
+  useEffect(() => {
+    if (!isHydrated || !user) {
+      return;
+    }
+    if (user.role === "admin") {
+      router.replace("/admin-dashboard");
+      return;
+    }
+    router.replace("/blogs");
+  }, [user, isHydrated]);
 
   const handleSubmit = async () => {
     setMessage(null);
@@ -43,14 +57,11 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       const response = await loginUser(values);
+      setUser(response);
       setMessage("Login successful");
       setErrors({});
-      // TODO: Store token if returned
       if (response.role === "admin") {
-        router.push({
-          pathname: "/admin-dashboard",
-          params: { municipalityEmail: response.email }
-        });
+        router.push("/admin-dashboard");
       } else {
         router.push("/blogs");
       }
@@ -62,11 +73,12 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.container}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <Text style={styles.title}>Ecofy</Text>
           <Text style={styles.subtitle}>Welcome Back</Text>
@@ -113,8 +125,9 @@ export default function LoginScreen() {
             </Link>
           </View>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 

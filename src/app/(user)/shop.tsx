@@ -13,6 +13,7 @@ import { colors, spacing, typography } from "../../constants/theme";
 import { getProducts } from "../../services/community";
 import { Product } from "../../types/community";
 import { useFocusEffect, useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ShopTab() {
   const router = useRouter();
@@ -48,6 +49,7 @@ export default function ShopTab() {
   );
 
   return (
+    <SafeAreaView style={styles.container}>
     <View style={styles.container}>
       <FlatList
         data={products}
@@ -80,6 +82,7 @@ export default function ShopTab() {
         </View>
       </Modal>
     </View>
+    </SafeAreaView>
   );
 }
 

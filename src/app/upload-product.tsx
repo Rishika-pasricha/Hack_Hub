@@ -1,14 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { TextField } from "../components/ui/TextField";
 import { PrimaryButton } from "../components/ui/PrimaryButton";
 import { colors, spacing, typography } from "../constants/theme";
 import { submitProduct } from "../services/community";
 import * as ImagePicker from "expo-image-picker";
+import { useAuth } from "../context/AuthContext";
 
 export default function UploadProductScreen() {
   const router = useRouter();
+  const { user, fullName, isHydrated } = useAuth();
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [imagePreviewUri, setImagePreviewUri] = useState("");
@@ -16,10 +19,18 @@ export default function UploadProductScreen() {
     productName: "",
     price: "",
     productImageData: "",
-    sellerName: "",
-    sellerEmail: "",
     city: ""
   });
+
+  useEffect(() => {
+    if (isHydrated && !user) {
+      router.replace("/login");
+    }
+  }, [user, isHydrated]);
+
+  if (!isHydrated || !user) {
+    return null;
+  }
 
   const pickImageFromGallery = async () => {
     setMessage(null);
@@ -59,8 +70,8 @@ export default function UploadProductScreen() {
       !form.productName ||
       !form.price ||
       !form.productImageData ||
-      !form.sellerName ||
-      !form.sellerEmail ||
+      !fullName ||
+      !user?.email ||
       !form.city
     ) {
       setMessage("Fill all fields");
@@ -79,8 +90,8 @@ export default function UploadProductScreen() {
         productName: form.productName,
         price: parsedPrice,
         productImageUrl: form.productImageData,
-        sellerName: form.sellerName,
-        sellerEmail: form.sellerEmail.toLowerCase(),
+        sellerName: fullName,
+        sellerEmail: user.email.toLowerCase(),
         city: form.city
       });
       setMessage("Product uploaded successfully");
@@ -93,6 +104,7 @@ export default function UploadProductScreen() {
   };
 
   return (
+    <SafeAreaView style={styles.container}>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Upload Product</Text>
       <Text style={styles.subtitle}>Submit your upcycled item to the shared marketplace.</Text>
@@ -111,17 +123,9 @@ export default function UploadProductScreen() {
         />
         <PrimaryButton label="Pick Image From Gallery" onPress={pickImageFromGallery} />
         {imagePreviewUri ? <Image source={{ uri: imagePreviewUri }} style={styles.preview} resizeMode="cover" /> : null}
-        <TextField
-          label="Your Name"
-          value={form.sellerName}
-          onChangeText={(value) => setForm((prev) => ({ ...prev, sellerName: value }))}
-        />
-        <TextField
-          label="Your Email"
-          value={form.sellerEmail}
-          keyboardType="email-address"
-          onChangeText={(value) => setForm((prev) => ({ ...prev, sellerEmail: value }))}
-        />
+        <Text style={styles.identity}>
+          Seller: {fullName || "Unknown User"} ({user?.email || "No email"})
+        </Text>
         <TextField
           label="Your City"
           value={form.city}
@@ -132,6 +136,7 @@ export default function UploadProductScreen() {
         <PrimaryButton label={loading ? "Uploading..." : "Submit Product"} onPress={handleSubmit} />
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -170,6 +175,11 @@ const styles = StyleSheet.create({
   message: {
     fontSize: typography.sizes.sm,
     color: colors.primaryDark,
+    marginBottom: spacing.sm
+  },
+  identity: {
+    fontSize: typography.sizes.sm,
+    color: colors.textSecondary,
     marginBottom: spacing.sm
   }
 });

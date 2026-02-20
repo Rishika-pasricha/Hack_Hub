@@ -1,17 +1,21 @@
 import { StyleSheet, Text, View, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { PrimaryButton } from "../components/ui/PrimaryButton";
 import { colors, spacing, typography } from "../constants/theme";
+import { useAuth } from "../context/AuthContext";
 
 export default function Home() {
   const router = useRouter();
+  const { logout } = useAuth();
 
   const handleLogout = () => {
-    // TODO: Clear stored token/auth data
-    router.push("/login");
+    logout();
+    router.replace("/login");
   };
 
   return (
+    <SafeAreaView style={styles.container}>
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Welcome to Ecofy</Text>
@@ -42,6 +46,7 @@ export default function Home() {
         <PrimaryButton label="Logout" onPress={handleLogout} />
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 

@@ -3,6 +3,7 @@ import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native
 import { colors, spacing, typography } from "../../constants/theme";
 import { getApprovedBlogs } from "../../services/community";
 import { BlogPost } from "../../types/community";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function BlogsTab() {
   const [blogs, setBlogs] = useState<BlogPost[]>([]);
@@ -27,6 +28,7 @@ export default function BlogsTab() {
   }, []);
 
   return (
+    <SafeAreaView style={styles.container}>
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
@@ -56,6 +58,7 @@ export default function BlogsTab() {
         </View>
       ))}
     </ScrollView>
+    </SafeAreaView>
   );
 }
 

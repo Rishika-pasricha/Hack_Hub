@@ -1,8 +1,10 @@
 import { StyleSheet, Text, View } from "react-native";
 import { colors, spacing, typography } from "../../constants/theme";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function CameraTab() {
   return (
+    <SafeAreaView style={styles.container}>
     <View style={styles.container}>
       <Text style={styles.title}>Camera</Text>
       <Text style={styles.subtitle}>ML-based waste segregation module will be added here.</Text>
@@ -10,6 +12,7 @@ export default function CameraTab() {
         <Text style={styles.previewText}>Camera placeholder</Text>
       </View>
     </View>
+    </SafeAreaView>
   );
 }
 

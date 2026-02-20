@@ -1,18 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View
+  View,
+  ActivityIndicator
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import * as Location from "expo-location";
 import { PrimaryButton } from "../../components/ui/PrimaryButton";
 import { TextField } from "../../components/ui/TextField";
 import { colors, spacing, typography } from "../../constants/theme";
-import { getMunicipalityByDistrict, getMunicipalityByLocation, submitBlog, submitIssue } from "../../services/community";
+import { getMunicipalityByDistrict, submitBlog, submitIssue } from "../../services/community";
 import { MunicipalityInfo } from "../../types/community";
 import { useAuth } from "../../context/AuthContext";
 
@@ -24,7 +24,6 @@ export default function SettingsTab() {
   const [working, setWorking] = useState(false);
   const [issueMessage, setIssueMessage] = useState<string | null>(null);
   const [blogMessage, setBlogMessage] = useState<string | null>(null);
-  const [districtInput, setDistrictInput] = useState("");
 
   const [issueForm, setIssueForm] = useState({
     subject: "",
@@ -36,51 +35,29 @@ export default function SettingsTab() {
     content: ""
   });
 
-  const resolveMunicipalityByLocation = async () => {
+  const resolveMunicipalityFromRegisteredDistrict = async () => {
     setLocationMessage(null);
     setWorking(true);
 
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        setLocationMessage("Location permission denied");
+      const district = user?.district?.trim();
+      if (!district) {
+        setLocationMessage("District is missing in your profile. Please register again with a valid district.");
         return;
       }
-
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced
-      });
-      const { latitude, longitude } = location.coords;
-      const result = await getMunicipalityByLocation(latitude, longitude);
+      const result = await getMunicipalityByDistrict(district);
       setMunicipality(result);
-      setLocationMessage(`Municipality mapped from location: ${result.municipalityName}`);
+      setLocationMessage(`Municipality mapped from your registered district: ${result.municipalityName}`);
     } catch (err: any) {
-      setLocationMessage(
-        `${err.message || "Failed to fetch municipality from location"}. Use district input below as fallback.`
-      );
+      setLocationMessage(err.message || "Failed to fetch municipality from your registered district");
     } finally {
       setWorking(false);
     }
   };
 
-  const resolveMunicipalityByDistrictInput = async () => {
-    setLocationMessage(null);
-    if (!districtInput.trim()) {
-      setLocationMessage("Enter district/city to find your municipality");
-      return;
-    }
-
-    try {
-      setWorking(true);
-      const result = await getMunicipalityByDistrict(districtInput.trim());
-      setMunicipality(result);
-      setLocationMessage(`Municipality mapped from district input: ${result.municipalityName}`);
-    } catch (err: any) {
-      setLocationMessage(err.message || "Failed to map municipality from district input");
-    } finally {
-      setWorking(false);
-    }
-  };
+  useEffect(() => {
+    resolveMunicipalityFromRegisteredDistrict();
+  }, [user?.district]);
 
   const handleIssueSubmit = async () => {
     setIssueMessage(null);
@@ -154,24 +131,14 @@ export default function SettingsTab() {
       <Text style={styles.title}>Settings</Text>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Location-Based Municipality Mapping</Text>
-        <Text style={styles.hint}>Only Settings uses location. Other tabs do not need location access.</Text>
+        <Text style={styles.cardTitle}>District-Based Municipality Mapping</Text>
+        <Text style={styles.hint}>Using your registered district: {user?.district || "Not set"}</Text>
         <PrimaryButton
-          label={working ? "Detecting..." : "Use My Location"}
-          onPress={resolveMunicipalityByLocation}
+          label={working ? "Refreshing..." : "Refresh Municipality"}
+          onPress={resolveMunicipalityFromRegisteredDistrict}
           disabled={working}
         />
-        <TextField
-          label="District / City (fallback)"
-          value={districtInput}
-          onChangeText={setDistrictInput}
-          placeholder="e.g. Gurugram"
-        />
-        <PrimaryButton
-          label={working ? "Searching..." : "Find Municipality By District"}
-          onPress={resolveMunicipalityByDistrictInput}
-          disabled={working}
-        />
+        {working ? <ActivityIndicator color={colors.primary} /> : null}
         {locationMessage ? <Text style={styles.info}>{locationMessage}</Text> : null}
         {municipality ? (
           <View style={styles.infoBox}>

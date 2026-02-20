@@ -1,16 +1,21 @@
 import { useState } from "react";
 import {
+  FlatList,
   KeyboardAvoidingView,
+  Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PrimaryButton } from "../components/ui/PrimaryButton";
 import { TextField } from "../components/ui/TextField";
+import { HARYANA_DISTRICTS } from "../constants/districts";
 import { colors, spacing, typography } from "../constants/theme";
 import { registerUser } from "../services/auth";
 import { RegisterPayload } from "../types/auth";
@@ -20,7 +25,8 @@ const initialValues: RegisterPayload = {
   firstName: "",
   lastName: "",
   email: "",
-  password: ""
+  password: "",
+  district: ""
 };
 
 export default function RegisterScreen() {
@@ -30,6 +36,12 @@ export default function RegisterScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [districtPickerOpen, setDistrictPickerOpen] = useState(false);
+  const [districtSearch, setDistrictSearch] = useState("");
+
+  const filteredDistricts = HARYANA_DISTRICTS.filter((district) =>
+    district.toLowerCase().includes(districtSearch.trim().toLowerCase())
+  );
 
   const updateField = (key: keyof RegisterPayload, value: string) => {
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -107,6 +119,13 @@ export default function RegisterScreen() {
             keyboardType="default"
             secureTextEntry
           />
+          <Text style={styles.label}>District</Text>
+          <Pressable style={styles.dropdown} onPress={() => setDistrictPickerOpen(true)}>
+            <Text style={values.district ? styles.dropdownValue : styles.dropdownPlaceholder}>
+              {values.district || "Select your district"}
+            </Text>
+          </Pressable>
+          {errors.district ? <Text style={styles.fieldError}>{errors.district}</Text> : null}
           <TextField
             label="Confirm password"
             placeholder="Re-enter password"
@@ -136,6 +155,38 @@ export default function RegisterScreen() {
         </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      <Modal visible={districtPickerOpen} transparent animationType="slide" onRequestClose={() => setDistrictPickerOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Select District</Text>
+            <TextInput
+              style={styles.searchInput}
+              value={districtSearch}
+              onChangeText={setDistrictSearch}
+              placeholder="Search district"
+              placeholderTextColor={colors.muted}
+            />
+            <FlatList
+              data={filteredDistricts}
+              keyExtractor={(item) => item}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <Pressable
+                  style={styles.optionRow}
+                  onPress={() => {
+                    updateField("district", item);
+                    setDistrictPickerOpen(false);
+                  }}
+                >
+                  <Text style={styles.optionText}>{item}</Text>
+                </Pressable>
+              )}
+              ListEmptyComponent={<Text style={styles.emptyText}>No district found</Text>}
+            />
+            <PrimaryButton label="Close" onPress={() => setDistrictPickerOpen(false)} />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -169,6 +220,74 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     borderWidth: 1,
     borderColor: colors.border
+  },
+  label: {
+    color: colors.text,
+    fontSize: typography.label,
+    marginBottom: spacing.xs
+  },
+  dropdown: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.background
+  },
+  dropdownValue: {
+    color: colors.text,
+    fontSize: typography.body
+  },
+  dropdownPlaceholder: {
+    color: colors.muted,
+    fontSize: typography.body
+  },
+  fieldError: {
+    color: colors.error,
+    fontSize: typography.label,
+    marginBottom: spacing.sm
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "flex-end"
+  },
+  modalCard: {
+    maxHeight: "70%",
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: spacing.lg,
+    borderTopRightRadius: spacing.lg,
+    padding: spacing.lg,
+    gap: spacing.sm
+  },
+  modalTitle: {
+    color: colors.text,
+    fontSize: typography.sizes.lg,
+    fontWeight: "700"
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    color: colors.text,
+    backgroundColor: colors.background
+  },
+  optionRow: {
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border
+  },
+  optionText: {
+    color: colors.text,
+    fontSize: typography.sizes.sm
+  },
+  emptyText: {
+    color: colors.textSecondary,
+    fontSize: typography.sizes.sm,
+    paddingVertical: spacing.md
   },
   message: {
     marginBottom: spacing.lg,

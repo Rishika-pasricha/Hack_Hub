@@ -28,13 +28,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-router",
-      [
-        "expo-location",
-        {
-          "locationWhenInUsePermission": "Ecofy uses your location to map your municipality."
-        }
-      ]
+      "expo-router"
     ]
   }
 }

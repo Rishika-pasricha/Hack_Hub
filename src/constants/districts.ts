@@ -1,0 +1,22 @@
+export const HARYANA_DISTRICTS = [
+  "AMBALA",
+  "BHIWANI",
+  "CHARKHI DADRI",
+  "FARIDABAD",
+  "FATEHABAD",
+  "GURUGRAM",
+  "HANSI",
+  "HISAR",
+  "JHAJJAR",
+  "JIND",
+  "KAITHAL",
+  "KARNAL",
+  "KURUKSHETRA",
+  "MAHENDRAGARH",
+  "NUH",
+  "PALWAL",
+  "PANCHKULA",
+  "PANIPAT",
+  "REWARI",
+  "ROHTAK"
+] as const;

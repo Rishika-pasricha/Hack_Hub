@@ -1,7 +1,5 @@
 import { useState } from "react";
 import {
-  PermissionsAndroid,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,33 +8,13 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as Location from "expo-location";
 import { PrimaryButton } from "../../components/ui/PrimaryButton";
 import { TextField } from "../../components/ui/TextField";
 import { colors, spacing, typography } from "../../constants/theme";
 import { getMunicipalityByDistrict, submitBlog, submitIssue } from "../../services/community";
 import { MunicipalityInfo } from "../../types/community";
 import { useAuth } from "../../context/AuthContext";
-
-type Coordinates = { latitude: number; longitude: number };
-
-function getCurrentPosition(): Promise<Coordinates> {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation || !navigator.geolocation.getCurrentPosition) {
-      reject(new Error("Location service not available on this device"));
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) =>
-        resolve({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude
-        }),
-      (error) => reject(new Error(error.message)),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-    );
-  });
-}
 
 export default function SettingsTab() {
   const router = useRouter();
@@ -63,25 +41,21 @@ export default function SettingsTab() {
     setWorking(true);
 
     try {
-      if (Platform.OS === "android") {
-        const permission = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
-        );
-        if (permission !== PermissionsAndroid.RESULTS.GRANTED) {
-          setLocationMessage("Location permission denied");
-          return;
-        }
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setLocationMessage("Location permission denied");
+        return;
       }
 
-      const { latitude, longitude } = await getCurrentPosition();
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced
+      });
+      const { latitude, longitude } = location.coords;
 
-      const geoRes = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`
-      );
-      const geoData = await geoRes.json();
-      const address = geoData?.address || {};
+      const reverseResults = await Location.reverseGeocodeAsync({ latitude, longitude });
+      const address = reverseResults?.[0];
       const districtCandidate =
-        address.state_district || address.county || address.city_district || address.city || address.state;
+        address?.subregion || address?.district || address?.city || address?.region;
 
       if (!districtCandidate) {
         setLocationMessage("Could not detect district from your location");

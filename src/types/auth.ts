@@ -3,7 +3,7 @@ export type RegisterPayload = {
   lastName: string;
   email: string;
   password: string;
-  district: string;
+  area: string;
 };
 
 export type RegisterResponse = {
@@ -11,7 +11,7 @@ export type RegisterResponse = {
   firstName: string;
   lastName: string;
   email: string;
-  district: string;
+  area: string;
 };
 
 export type LoginPayload = {
@@ -24,7 +24,7 @@ export type LoginResponse = {
   firstName: string;
   lastName: string;
   email: string;
-  district: string;
+  area: string;
   role: "user" | "admin";
   token?: string;
 };

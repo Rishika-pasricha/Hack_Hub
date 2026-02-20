@@ -15,7 +15,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PrimaryButton } from "../components/ui/PrimaryButton";
 import { TextField } from "../components/ui/TextField";
-import { HARYANA_DISTRICTS } from "../constants/districts";
+import { HARYANA_AREAS } from "../constants/areas";
 import { colors, spacing, typography } from "../constants/theme";
 import { registerUser } from "../services/auth";
 import { RegisterPayload } from "../types/auth";
@@ -26,7 +26,7 @@ const initialValues: RegisterPayload = {
   lastName: "",
   email: "",
   password: "",
-  district: ""
+  area: ""
 };
 
 export default function RegisterScreen() {
@@ -36,11 +36,11 @@ export default function RegisterScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [districtPickerOpen, setDistrictPickerOpen] = useState(false);
-  const [districtSearch, setDistrictSearch] = useState("");
+  const [areaPickerOpen, setAreaPickerOpen] = useState(false);
+  const [areaSearch, setAreaSearch] = useState("");
 
-  const filteredDistricts = HARYANA_DISTRICTS.filter((district) =>
-    district.toLowerCase().includes(districtSearch.trim().toLowerCase())
+  const filteredAreas = HARYANA_AREAS.filter((area) =>
+    area.toLowerCase().includes(areaSearch.trim().toLowerCase())
   );
 
   const updateField = (key: keyof RegisterPayload, value: string) => {
@@ -119,13 +119,13 @@ export default function RegisterScreen() {
             keyboardType="default"
             secureTextEntry
           />
-          <Text style={styles.label}>District</Text>
-          <Pressable style={styles.dropdown} onPress={() => setDistrictPickerOpen(true)}>
-            <Text style={values.district ? styles.dropdownValue : styles.dropdownPlaceholder}>
-              {values.district || "Select your district"}
+          <Text style={styles.label}>Area</Text>
+          <Pressable style={styles.dropdown} onPress={() => setAreaPickerOpen(true)}>
+            <Text style={values.area ? styles.dropdownValue : styles.dropdownPlaceholder}>
+              {values.area || "Select your area"}
             </Text>
           </Pressable>
-          {errors.district ? <Text style={styles.fieldError}>{errors.district}</Text> : null}
+          {errors.area ? <Text style={styles.fieldError}>{errors.area}</Text> : null}
           <TextField
             label="Confirm password"
             placeholder="Re-enter password"
@@ -155,35 +155,35 @@ export default function RegisterScreen() {
         </View>
         </ScrollView>
       </KeyboardAvoidingView>
-      <Modal visible={districtPickerOpen} transparent animationType="slide" onRequestClose={() => setDistrictPickerOpen(false)}>
+      <Modal visible={areaPickerOpen} transparent animationType="slide" onRequestClose={() => setAreaPickerOpen(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Select District</Text>
+            <Text style={styles.modalTitle}>Select Area</Text>
             <TextInput
               style={styles.searchInput}
-              value={districtSearch}
-              onChangeText={setDistrictSearch}
-              placeholder="Search district"
+              value={areaSearch}
+              onChangeText={setAreaSearch}
+              placeholder="Search area"
               placeholderTextColor={colors.muted}
             />
             <FlatList
-              data={filteredDistricts}
+              data={filteredAreas}
               keyExtractor={(item) => item}
               keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => (
                 <Pressable
                   style={styles.optionRow}
                   onPress={() => {
-                    updateField("district", item);
-                    setDistrictPickerOpen(false);
+                    updateField("area", item);
+                    setAreaPickerOpen(false);
                   }}
                 >
                   <Text style={styles.optionText}>{item}</Text>
                 </Pressable>
               )}
-              ListEmptyComponent={<Text style={styles.emptyText}>No district found</Text>}
+              ListEmptyComponent={<Text style={styles.emptyText}>No area found</Text>}
             />
-            <PrimaryButton label="Close" onPress={() => setDistrictPickerOpen(false)} />
+            <PrimaryButton label="Close" onPress={() => setAreaPickerOpen(false)} />
           </View>
         </View>
       </Modal>

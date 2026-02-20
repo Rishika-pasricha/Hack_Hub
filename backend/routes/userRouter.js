@@ -24,14 +24,14 @@ function isBase64ImageDataUrl(value) {
 }
 
 router.post('/register', async (req, res) => {
-    const { firstName, lastName, district, email, password } = req.body;
+    const { firstName, lastName, area, email, password } = req.body;
 
-    if (!firstName || !lastName || !district || !email || !password) {
+    if (!firstName || !lastName || !area || !email || !password) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
     try {
         const normalizedEmail = String(email).toLowerCase();
-        const normalizedDistrict = String(district).trim().toUpperCase();
+        const normalizedArea = String(area).trim();
 
         if (isMunicipalityEmail(normalizedEmail)) {
             return res.status(409).json({ error: 'Municipality accounts are managed by admin' });
@@ -46,7 +46,7 @@ router.post('/register', async (req, res) => {
         const user = await usermodel.create({
             firstName,
             lastName,
-            district: normalizedDistrict,
+            area: normalizedArea,
             email: normalizedEmail,
             passwordHash
         });
@@ -55,7 +55,7 @@ router.post('/register', async (req, res) => {
             firstName: user.firstName,
             lastName: user.lastName,
             email: user.email,
-            district: user.district
+            area: user.area
         });
     } catch (err) {
         if (err && err.code === 11000) {
@@ -65,27 +65,27 @@ router.post('/register', async (req, res) => {
     }
 });
 
-router.get('/municipality/by-district', async (req, res) => {
-    const districtQuery = normalizeText(req.query.district).toLowerCase();
+router.get('/municipality/by-area', async (req, res) => {
+    const areaQuery = normalizeText(req.query.area).toLowerCase();
 
-    if (!districtQuery) {
-        return res.status(400).json({ error: 'district is required' });
+    if (!areaQuery) {
+        return res.status(400).json({ error: 'area is required' });
     }
 
     try {
         let municipality = await Municipality.findOne({
-            district: { $regex: `^${escapeRegex(districtQuery)}$`, $options: 'i' }
+            municipalityName: { $regex: `^${escapeRegex(areaQuery)}$`, $options: 'i' }
         });
 
         if (!municipality) {
             municipality = await Municipality.findOne({
-                district: { $regex: escapeRegex(districtQuery), $options: 'i' }
+                municipalityName: { $regex: escapeRegex(areaQuery), $options: 'i' }
             });
         }
 
         if (!municipality) {
             municipality = await Municipality.findOne({
-                municipalityName: { $regex: escapeRegex(districtQuery), $options: 'i' }
+                district: { $regex: escapeRegex(areaQuery), $options: 'i' }
             });
         }
 
@@ -131,7 +131,7 @@ router.post('/login', async (req, res) => {
                 firstName: municipality.municipalityName,
                 lastName: municipality.district,
                 email: municipality.contactEmail,
-                district: municipality.district,
+                area: municipality.municipalityName,
                 role: 'admin'
             });
         }
@@ -153,7 +153,7 @@ router.post('/login', async (req, res) => {
             firstName: user.firstName,
             lastName: user.lastName,
             email: user.email,
-            district: user.district || '',
+            area: user.area || user.district || '',
             role: 'user'
         });
     } catch (err) {

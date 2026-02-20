@@ -12,7 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { PrimaryButton } from "../../components/ui/PrimaryButton";
 import { TextField } from "../../components/ui/TextField";
 import { colors, spacing, typography } from "../../constants/theme";
-import { getMunicipalityByDistrict, submitBlog, submitIssue } from "../../services/community";
+import { getMunicipalityByArea, submitBlog, submitIssue } from "../../services/community";
 import { MunicipalityInfo } from "../../types/community";
 import { useAuth } from "../../context/AuthContext";
 
@@ -35,29 +35,29 @@ export default function SettingsTab() {
     content: ""
   });
 
-  const resolveMunicipalityFromRegisteredDistrict = async () => {
+  const resolveMunicipalityFromRegisteredArea = async () => {
     setLocationMessage(null);
     setWorking(true);
 
     try {
-      const district = user?.district?.trim();
-      if (!district) {
-        setLocationMessage("District is missing in your profile. Please register again with a valid district.");
+      const area = user?.area?.trim() || String((user as any)?.district || "").trim();
+      if (!area) {
+        setLocationMessage("Area is missing in your profile. Please register again with a valid area.");
         return;
       }
-      const result = await getMunicipalityByDistrict(district);
+      const result = await getMunicipalityByArea(area);
       setMunicipality(result);
-      setLocationMessage(`Municipality mapped from your registered district: ${result.municipalityName}`);
+      setLocationMessage(`Municipality mapped from your registered area: ${result.municipalityName}`);
     } catch (err: any) {
-      setLocationMessage(err.message || "Failed to fetch municipality from your registered district");
+      setLocationMessage(err.message || "Failed to fetch municipality from your registered area");
     } finally {
       setWorking(false);
     }
   };
 
   useEffect(() => {
-    resolveMunicipalityFromRegisteredDistrict();
-  }, [user?.district]);
+    resolveMunicipalityFromRegisteredArea();
+  }, [user?.area]);
 
   const handleIssueSubmit = async () => {
     setIssueMessage(null);
@@ -131,11 +131,13 @@ export default function SettingsTab() {
       <Text style={styles.title}>Settings</Text>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>District-Based Municipality Mapping</Text>
-        <Text style={styles.hint}>Using your registered district: {user?.district || "Not set"}</Text>
+        <Text style={styles.cardTitle}>Area-Based Municipality Mapping</Text>
+        <Text style={styles.hint}>
+          Using your registered area: {user?.area || String((user as any)?.district || "") || "Not set"}
+        </Text>
         <PrimaryButton
           label={working ? "Refreshing..." : "Refresh Municipality"}
-          onPress={resolveMunicipalityFromRegisteredDistrict}
+          onPress={resolveMunicipalityFromRegisteredArea}
           disabled={working}
         />
         {working ? <ActivityIndicator color={colors.primary} /> : null}

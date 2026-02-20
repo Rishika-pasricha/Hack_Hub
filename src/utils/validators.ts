@@ -30,8 +30,8 @@ export function validateRegister(
     errors.password = "Password must be at least 8 characters";
   }
 
-  if (!values.district.trim()) {
-    errors.district = "District is required";
+  if (!values.area.trim()) {
+    errors.area = "Area is required";
   }
 
   if (!confirmPassword.trim()) {

@@ -1,8 +1,8 @@
 import { apiRequest } from "./api";
 import { BlogPost, Issue, MunicipalityInfo, Product } from "../types/community";
 
-export function getMunicipalityByDistrict(district: string) {
-  return apiRequest<MunicipalityInfo>(`/municipality/by-district?district=${encodeURIComponent(district)}`);
+export function getMunicipalityByArea(area: string) {
+  return apiRequest<MunicipalityInfo>(`/municipality/by-area?area=${encodeURIComponent(area)}`);
 }
 
 export function getApprovedBlogs(municipalityEmail?: string) {

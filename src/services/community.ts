@@ -61,6 +61,7 @@ export function getProducts() {
 
 export function submitProduct(payload: {
   productName: string;
+  description?: string;
   price: number;
   productImageUrl: string;
   sellerName: string;

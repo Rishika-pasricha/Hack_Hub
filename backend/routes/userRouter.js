@@ -298,7 +298,7 @@ router.get('/products', async (_req, res) => {
 });
 
 router.post('/products/submit', async (req, res) => {
-    const { productName, price, productImageUrl, sellerName, sellerEmail, city } = req.body;
+    const { productName, description, price, productImageUrl, sellerName, sellerEmail, city } = req.body;
 
     if (!productName || !price || !productImageUrl || !sellerName || !sellerEmail || !city) {
         return res.status(400).json({ error: 'Missing required fields' });
@@ -312,6 +312,7 @@ router.post('/products/submit', async (req, res) => {
     try {
         const product = await Product.create({
             productName: String(productName).trim(),
+            description: String(description || '').trim(),
             price: parsedPrice,
             productImageUrl: String(productImageUrl).trim(),
             sellerName: String(sellerName).trim(),

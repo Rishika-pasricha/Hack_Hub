@@ -33,6 +33,7 @@ export type Issue = {
 export type Product = {
   _id: string;
   productName: string;
+  description?: string;
   price: number;
   productImageUrl: string;
   sellerName: string;

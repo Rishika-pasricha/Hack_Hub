@@ -74,6 +74,9 @@ export default function ShopTab() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>{selectedProduct?.productName}</Text>
+            {selectedProduct?.description ? (
+              <Text style={styles.detailText}>Description: {selectedProduct.description}</Text>
+            ) : null}
             <Text style={styles.detailText}>Price: Rs. {selectedProduct?.price}</Text>
             <Text style={styles.detailText}>Seller Email: {selectedProduct?.sellerEmail}</Text>
             <Text style={styles.detailText}>City: {selectedProduct?.city}</Text>

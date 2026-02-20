@@ -3,6 +3,7 @@ const mongoose = require('../config/db');
 const productSchema = new mongoose.Schema(
   {
     productName: { type: String, trim: true, required: true },
+    description: { type: String, trim: true, default: "" },
     price: { type: Number, required: true },
     productImageUrl: { type: String, trim: true, required: true },
     sellerName: { type: String, trim: true, required: true },

@@ -17,6 +17,7 @@ export default function UploadProductScreen() {
   const [imagePreviewUri, setImagePreviewUri] = useState("");
   const [form, setForm] = useState({
     productName: "",
+    description: "",
     price: "",
     productImageData: "",
     city: ""
@@ -88,6 +89,7 @@ export default function UploadProductScreen() {
       setLoading(true);
       await submitProduct({
         productName: form.productName,
+        description: form.description.trim() || undefined,
         price: parsedPrice,
         productImageUrl: form.productImageData,
         sellerName: fullName,
@@ -120,6 +122,12 @@ export default function UploadProductScreen() {
           value={form.price}
           keyboardType="numeric"
           onChangeText={(value) => setForm((prev) => ({ ...prev, price: value }))}
+        />
+        <TextField
+          label="Description (Optional)"
+          value={form.description}
+          onChangeText={(value) => setForm((prev) => ({ ...prev, description: value }))}
+          placeholder="Add product details"
         />
         <PrimaryButton label="Pick Image From Gallery" onPress={pickImageFromGallery} />
         {imagePreviewUri ? <Image source={{ uri: imagePreviewUri }} style={styles.preview} resizeMode="cover" /> : null}

@@ -43,6 +43,7 @@ export default function SettingsTab() {
   const [working, setWorking] = useState(false);
   const [issueMessage, setIssueMessage] = useState<string | null>(null);
   const [blogMessage, setBlogMessage] = useState<string | null>(null);
+  const [districtInput, setDistrictInput] = useState("");
 
   const [issueForm, setIssueForm] = useState({
     userName: "",
@@ -92,7 +93,28 @@ export default function SettingsTab() {
       setMunicipality(result);
       setLocationMessage(`Municipality mapped from location: ${result.municipalityName}`);
     } catch (err: any) {
-      setLocationMessage(err.message || "Failed to fetch municipality from location");
+      setLocationMessage(
+        `${err.message || "Failed to fetch municipality from location"}. Use district input below as fallback.`
+      );
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const resolveMunicipalityByDistrictInput = async () => {
+    setLocationMessage(null);
+    if (!districtInput.trim()) {
+      setLocationMessage("Enter district/city to find your municipality");
+      return;
+    }
+
+    try {
+      setWorking(true);
+      const result = await getMunicipalityByDistrict(districtInput.trim());
+      setMunicipality(result);
+      setLocationMessage(`Municipality mapped from district input: ${result.municipalityName}`);
+    } catch (err: any) {
+      setLocationMessage(err.message || "Failed to map municipality from district input");
     } finally {
       setWorking(false);
     }
@@ -164,6 +186,17 @@ export default function SettingsTab() {
         <PrimaryButton
           label={working ? "Detecting..." : "Use My Location"}
           onPress={resolveMunicipalityByLocation}
+          disabled={working}
+        />
+        <TextField
+          label="District / City (fallback)"
+          value={districtInput}
+          onChangeText={setDistrictInput}
+          placeholder="e.g. Gurugram"
+        />
+        <PrimaryButton
+          label={working ? "Searching..." : "Find Municipality By District"}
+          onPress={resolveMunicipalityByDistrictInput}
           disabled={working}
         />
         {locationMessage ? <Text style={styles.info}>{locationMessage}</Text> : null}

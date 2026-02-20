@@ -2,6 +2,7 @@ const usermodel = require('../models/usermodel');
 const Municipality = require('../models/municipalityModel');
 const BlogPost = require('../models/blogPostModel');
 const Issue = require('../models/issueModel');
+const Product = require('../models/productModel');
 
 const express = require('express');
 const router = express.Router();
@@ -284,6 +285,46 @@ router.get('/admin/issues', async (req, res) => {
         return res.status(200).json(issues);
     } catch (err) {
         return res.status(500).json({ error: 'Failed to load municipality issues' });
+    }
+});
+
+router.get('/products', async (_req, res) => {
+    try {
+        const products = await Product.find({}).sort({ createdAt: -1 }).limit(500);
+        return res.status(200).json(products);
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to load products' });
+    }
+});
+
+router.post('/products/submit', async (req, res) => {
+    const { productName, price, productImageUrl, sellerName, sellerEmail, city } = req.body;
+
+    if (!productName || !price || !productImageUrl || !sellerName || !sellerEmail || !city) {
+        return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const parsedPrice = Number(price);
+    if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+        return res.status(400).json({ error: 'Price must be a positive number' });
+    }
+
+    try {
+        const product = await Product.create({
+            productName: String(productName).trim(),
+            price: parsedPrice,
+            productImageUrl: String(productImageUrl).trim(),
+            sellerName: String(sellerName).trim(),
+            sellerEmail: String(sellerEmail).toLowerCase().trim(),
+            city: String(city).trim()
+        });
+
+        return res.status(201).json({
+            id: product._id,
+            message: 'Product uploaded successfully'
+        });
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to upload product' });
     }
 });
 

@@ -29,3 +29,14 @@ export type Issue = {
   status: "open" | "resolved";
   createdAt: string;
 };
+
+export type Product = {
+  _id: string;
+  productName: string;
+  price: number;
+  productImageUrl: string;
+  sellerName: string;
+  sellerEmail: string;
+  city: string;
+  createdAt: string;
+};

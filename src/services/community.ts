@@ -1,5 +1,5 @@
 import { apiRequest } from "./api";
-import { BlogPost, Issue, MunicipalityInfo } from "../types/community";
+import { BlogPost, Issue, MunicipalityInfo, Product } from "../types/community";
 
 export function getMunicipalityByDistrict(district: string) {
   return apiRequest<MunicipalityInfo>(`/municipality/by-district?district=${encodeURIComponent(district)}`);
@@ -53,4 +53,22 @@ export function approveBlogForAdmin(blogId: string, municipalityEmail: string) {
 
 export function getIssuesForAdmin(municipalityEmail: string) {
   return apiRequest<Issue[]>(`/admin/issues?municipalityEmail=${encodeURIComponent(municipalityEmail)}`);
+}
+
+export function getProducts() {
+  return apiRequest<Product[]>("/products");
+}
+
+export function submitProduct(payload: {
+  productName: string;
+  price: number;
+  productImageUrl: string;
+  sellerName: string;
+  sellerEmail: string;
+  city: string;
+}) {
+  return apiRequest<{ id: string; message: string }>("/products/submit", {
+    method: "POST",
+    body: payload
+  });
 }

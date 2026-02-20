@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import {
   FlatList,
   Image,
+  Linking,
   Modal,
   Pressable,
   StyleSheet,
@@ -38,6 +39,36 @@ export default function ShopTab() {
       return () => clearInterval(interval);
     }, [])
   );
+
+  const handleEnquire = async () => {
+    if (!selectedProduct) {
+      return;
+    }
+
+    const subject = `Ecofy Marketplace Enquiry: ${selectedProduct.productName}`;
+    const body =
+      `Hi ${selectedProduct.sellerName},\n\n` +
+      `I found your listing "${selectedProduct.productName}" on Ecofy and I am interested in buying it.\n\n` +
+      `Could you please share more details about availability and pickup/delivery options?\n\n` +
+      `Thanks,\n` +
+      `Ecofy User`;
+
+    const gmailUrl =
+      `googlegmail://co?to=${encodeURIComponent(selectedProduct.sellerEmail)}` +
+      `&subject=${encodeURIComponent(subject)}` +
+      `&body=${encodeURIComponent(body)}`;
+    const mailtoUrl =
+      `mailto:${encodeURIComponent(selectedProduct.sellerEmail)}` +
+      `?subject=${encodeURIComponent(subject)}` +
+      `&body=${encodeURIComponent(body)}`;
+
+    try {
+      const canOpenGmail = await Linking.canOpenURL(gmailUrl);
+      await Linking.openURL(canOpenGmail ? gmailUrl : mailtoUrl);
+    } catch (err: any) {
+      setMessage(err.message || "Failed to open email app");
+    }
+  };
 
   const renderHeader = () => (
     <View style={styles.header}>
@@ -83,7 +114,7 @@ export default function ShopTab() {
               <Text style={styles.detailText}>Description: {selectedProduct.description}</Text>
             ) : null}
             <Text style={styles.detailText}>Price: Rs. {selectedProduct?.price}</Text>
-            <Text style={styles.detailText}>Seller Email: {selectedProduct?.sellerEmail}</Text>
+            <PrimaryButton label="Enquire" onPress={handleEnquire} />
             <Text style={styles.detailText}>City: {selectedProduct?.city}</Text>
             <PrimaryButton label="Close" onPress={() => setSelectedProduct(null)} />
           </View>

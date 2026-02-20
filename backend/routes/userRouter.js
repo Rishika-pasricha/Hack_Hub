@@ -14,6 +14,11 @@ function normalizeText(input) {
     return String(input || '').trim();
 }
 
+function isBase64ImageDataUrl(value) {
+    const normalized = String(value || '').trim();
+    return /^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(normalized);
+}
+
 router.post('/register', async (req, res) => {
     const { firstName, lastName, email, password } = req.body;
 
@@ -297,6 +302,21 @@ router.get('/products', async (_req, res) => {
     }
 });
 
+router.get('/products/my', async (req, res) => {
+    const sellerEmail = normalizeText(req.query.sellerEmail).toLowerCase();
+
+    if (!sellerEmail) {
+        return res.status(400).json({ error: 'sellerEmail is required' });
+    }
+
+    try {
+        const products = await Product.find({ sellerEmail }).sort({ createdAt: -1 }).limit(500);
+        return res.status(200).json(products);
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to load your products' });
+    }
+});
+
 router.post('/products/submit', async (req, res) => {
     const { productName, description, price, productImageUrl, sellerName, sellerEmail, city } = req.body;
 
@@ -307,6 +327,10 @@ router.post('/products/submit', async (req, res) => {
     const parsedPrice = Number(price);
     if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
         return res.status(400).json({ error: 'Price must be a positive number' });
+    }
+
+    if (!isBase64ImageDataUrl(productImageUrl)) {
+        return res.status(400).json({ error: 'Please upload image from gallery' });
     }
 
     try {
@@ -326,6 +350,78 @@ router.post('/products/submit', async (req, res) => {
         });
     } catch (err) {
         return res.status(500).json({ error: 'Failed to upload product' });
+    }
+});
+
+router.patch('/products/:id', async (req, res) => {
+    const { id } = req.params;
+    const { sellerEmail, productName, description, price, city, productImageUrl } = req.body;
+    const normalizedSellerEmail = normalizeText(sellerEmail).toLowerCase();
+
+    if (!normalizedSellerEmail) {
+        return res.status(400).json({ error: 'sellerEmail is required' });
+    }
+
+    if (!productName || !price || !city) {
+        return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const parsedPrice = Number(price);
+    if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+        return res.status(400).json({ error: 'Price must be a positive number' });
+    }
+
+    try {
+        const updateDoc = {
+            productName: String(productName).trim(),
+            description: String(description || '').trim(),
+            price: parsedPrice,
+            city: String(city).trim()
+        };
+        if (productImageUrl) {
+            if (!isBase64ImageDataUrl(productImageUrl)) {
+                return res.status(400).json({ error: 'Please upload image from gallery' });
+            }
+            updateDoc.productImageUrl = String(productImageUrl).trim();
+        }
+
+        const updated = await Product.findOneAndUpdate(
+            { _id: id, sellerEmail: normalizedSellerEmail },
+            updateDoc,
+            { new: true }
+        );
+
+        if (!updated) {
+            return res.status(404).json({ error: 'Product not found for this account' });
+        }
+
+        return res.status(200).json({ message: 'Product updated successfully' });
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to update product' });
+    }
+});
+
+router.delete('/products/:id', async (req, res) => {
+    const { id } = req.params;
+    const normalizedSellerEmail = normalizeText(req.body.sellerEmail).toLowerCase();
+
+    if (!normalizedSellerEmail) {
+        return res.status(400).json({ error: 'sellerEmail is required' });
+    }
+
+    try {
+        const deleted = await Product.findOneAndDelete({
+            _id: id,
+            sellerEmail: normalizedSellerEmail
+        });
+
+        if (!deleted) {
+            return res.status(404).json({ error: 'Product not found for this account' });
+        }
+
+        return res.status(200).json({ message: 'Product deleted successfully' });
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to delete product' });
     }
 });
 

@@ -20,6 +20,7 @@ export default function ShopTab() {
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const loadProducts = async () => {
     try {
@@ -40,9 +41,13 @@ export default function ShopTab() {
 
   const renderHeader = () => (
     <View style={styles.header}>
+      <View style={styles.headerTopRow}>
+        <Pressable style={styles.menuButton} onPress={() => setDrawerOpen(true)}>
+          <Text style={styles.menuButtonText}>Menu</Text>
+        </Pressable>
+      </View>
       <Text style={styles.title}>Best Out Of Waste Shop</Text>
-      <Text style={styles.subtitle}>Buy and sell upcycled products.</Text>
-      <PrimaryButton label="Upload Product" onPress={() => router.push("/upload-product")} />
+      <Text style={styles.subtitle}>Community marketplace to buy and sell upcycled products.</Text>
       {message ? <Text style={styles.info}>{message}</Text> : null}
       {products.length === 0 ? <Text style={styles.cardText}>No products uploaded yet.</Text> : null}
     </View>
@@ -84,6 +89,33 @@ export default function ShopTab() {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={drawerOpen} transparent animationType="fade" onRequestClose={() => setDrawerOpen(false)}>
+        <View style={styles.drawerOverlay}>
+          <Pressable style={styles.drawerBackdrop} onPress={() => setDrawerOpen(false)} />
+          <View style={styles.drawerPanel}>
+            <Text style={styles.drawerTitle}>Marketplace</Text>
+            <Pressable
+              style={styles.drawerItem}
+              onPress={() => {
+                setDrawerOpen(false);
+                router.push("/upload-product");
+              }}
+            >
+              <Text style={styles.drawerItemText}>Upload Product</Text>
+            </Pressable>
+            <Pressable
+              style={styles.drawerItem}
+              onPress={() => {
+                setDrawerOpen(false);
+                router.push("/my-products");
+              }}
+            >
+              <Text style={styles.drawerItemText}>My Products</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
     </SafeAreaView>
   );
@@ -96,6 +128,23 @@ const styles = StyleSheet.create({
   },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
   header: { paddingBottom: spacing.lg, gap: spacing.sm },
+  headerTopRow: {
+    flexDirection: "row",
+    justifyContent: "flex-start"
+  },
+  menuButton: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: spacing.sm,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs
+  },
+  menuButtonText: {
+    fontSize: typography.sizes.sm,
+    color: colors.text,
+    fontWeight: "700"
+  },
   row: { justifyContent: "space-between", marginBottom: spacing.md },
   title: {
     fontSize: typography.sizes.xl,
@@ -169,5 +218,43 @@ const styles = StyleSheet.create({
   detailText: {
     fontSize: typography.sizes.sm,
     color: colors.text
+  },
+  drawerOverlay: {
+    flex: 1,
+    justifyContent: "flex-start",
+    alignItems: "flex-start"
+  },
+  drawerBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.35)"
+  },
+  drawerPanel: {
+    width: "52%",
+    maxWidth: 240,
+    minHeight: "100%",
+    backgroundColor: colors.surface,
+    borderRightWidth: 1,
+    borderRightColor: colors.border,
+    paddingTop: spacing.xl,
+    paddingHorizontal: spacing.md,
+    gap: spacing.sm
+  },
+  drawerTitle: {
+    fontSize: typography.sizes.md,
+    fontWeight: "700",
+    color: colors.text
+  },
+  drawerItem: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: spacing.xs,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.background
+  },
+  drawerItemText: {
+    fontSize: typography.sizes.sm,
+    color: colors.text,
+    fontWeight: "600"
   }
 });

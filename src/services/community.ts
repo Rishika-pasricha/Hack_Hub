@@ -59,6 +59,10 @@ export function getProducts() {
   return apiRequest<Product[]>("/products");
 }
 
+export function getMyProducts(sellerEmail: string) {
+  return apiRequest<Product[]>(`/products/my?sellerEmail=${encodeURIComponent(sellerEmail)}`);
+}
+
 export function submitProduct(payload: {
   productName: string;
   description?: string;
@@ -71,5 +75,29 @@ export function submitProduct(payload: {
   return apiRequest<{ id: string; message: string }>("/products/submit", {
     method: "POST",
     body: payload
+  });
+}
+
+export function updateProduct(
+  productId: string,
+  payload: {
+    sellerEmail: string;
+    productName: string;
+    description?: string;
+    price: number;
+    city: string;
+    productImageUrl?: string;
+  }
+) {
+  return apiRequest<{ message: string }>(`/products/${productId}`, {
+    method: "PATCH",
+    body: payload
+  });
+}
+
+export function deleteProduct(productId: string, sellerEmail: string) {
+  return apiRequest<{ message: string }>(`/products/${productId}`, {
+    method: "DELETE",
+    body: { sellerEmail }
   });
 }

@@ -8,7 +8,8 @@ const municipalitySchema = new mongoose.Schema(
     areaSqKm: { type: Number, required: true },
     population: { type: Number, required: true },
     contactEmail: { type: String, trim: true, lowercase: true, required: true, unique: true },
-    contactPhone: { type: String, trim: true, required: true }
+    contactPhone: { type: String, trim: true, required: true },
+    adminPassword: { type: String, trim: true, required: true }
   },
   { timestamps: true }
 );

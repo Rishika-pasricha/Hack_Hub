@@ -1,4 +1,5 @@
 const usermodel = require('../models/usermodel');
+const Municipality = require('../models/municipalityModel');
 
 const express = require('express');
 const router = express.Router();
@@ -14,6 +15,11 @@ router.post('/register', async (req, res) => {
     }
     try {
         const normalizedEmail = String(email).toLowerCase();
+
+        if (isMunicipalityEmail(normalizedEmail)) {
+            return res.status(409).json({ error: 'Municipality accounts are managed by admin' });
+        }
+
         const existingUser = await usermodel.findOne({ email: normalizedEmail });
         if (existingUser) {
             return res.status(409).json({ error: 'Email already registered' });
@@ -49,6 +55,27 @@ router.post('/login', async (req, res) => {
 
     try {
         const normalizedEmail = String(email).toLowerCase();
+
+        if (isMunicipalityEmail(normalizedEmail)) {
+            const municipality = await Municipality.findOne({ contactEmail: normalizedEmail });
+
+            if (!municipality) {
+                return res.status(401).json({ error: 'Invalid email or password' });
+            }
+
+            if (String(password) !== municipality.adminPassword) {
+                return res.status(401).json({ error: 'Invalid email or password' });
+            }
+
+            return res.status(200).json({
+                id: municipality._id,
+                firstName: municipality.municipalityName,
+                lastName: municipality.district,
+                email: municipality.contactEmail,
+                role: 'admin'
+            });
+        }
+
         const user = await usermodel.findOne({ email: normalizedEmail });
         
         if (!user) {
@@ -66,7 +93,7 @@ router.post('/login', async (req, res) => {
             firstName: user.firstName,
             lastName: user.lastName,
             email: user.email,
-            role: isMunicipalityEmail(normalizedEmail) ? 'admin' : 'user'
+            role: 'user'
         });
     } catch (err) {
         return res.status(500).json({ error: 'Failed to login' });

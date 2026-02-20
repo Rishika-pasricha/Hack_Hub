@@ -34,6 +34,7 @@ function parseCsvLine(line) {
 }
 
 async function syncMunicipalitiesFromCsv() {
+  const defaultMunicipalityPassword = process.env.MUNICIPALITY_DEFAULT_PASSWORD || 'EcofyAdmin123';
   const csvPath = path.resolve(__dirname, '..', '..', 'municipality_dataset.csv');
   const csvText = fs.readFileSync(csvPath, 'utf8');
   const lines = csvText.split(/\r?\n/).filter(Boolean);
@@ -87,7 +88,8 @@ async function syncMunicipalitiesFromCsv() {
         areaSqKm: Number.isFinite(areaSqKm) ? areaSqKm : 0,
         population: Number.isFinite(population) ? population : 0,
         contactEmail,
-        contactPhone
+        contactPhone,
+        adminPassword: defaultMunicipalityPassword
       },
       { upsert: true }
     );

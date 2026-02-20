@@ -5,6 +5,12 @@ export function getMunicipalityByDistrict(district: string) {
   return apiRequest<MunicipalityInfo>(`/municipality/by-district?district=${encodeURIComponent(district)}`);
 }
 
+export function getMunicipalityByLocation(latitude: number, longitude: number) {
+  return apiRequest<MunicipalityInfo>(
+    `/municipality/by-location?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}`
+  );
+}
+
 export function getApprovedBlogs(municipalityEmail?: string) {
   const query = municipalityEmail
     ? `?municipalityEmail=${encodeURIComponent(municipalityEmail)}`

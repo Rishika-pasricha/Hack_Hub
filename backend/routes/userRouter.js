@@ -14,6 +14,141 @@ function normalizeText(input) {
     return String(input || '').trim();
 }
 
+function normalizeLocationName(value) {
+    return String(value || '')
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, ' ')
+        .replace(/\b(district|division|tehsil|taluk|state)\b/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function applyLocationAliases(value) {
+    const aliases = {
+        gurgaon: 'gurugram'
+    };
+    return aliases[value] || value;
+}
+
+function dedupeStrings(values) {
+    return Array.from(
+        new Set(
+            values
+                .map((value) => normalizeLocationName(value))
+                .map((value) => applyLocationAliases(value))
+                .filter(Boolean)
+        )
+    );
+}
+
+function escapeRegex(text) {
+    return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function findMunicipalityByLocationCandidates(rawCandidates) {
+    const candidates = dedupeStrings(rawCandidates);
+    if (candidates.length === 0) {
+        return null;
+    }
+
+    for (const candidate of candidates) {
+        const byMunicipality = await Municipality.findOne({
+            municipalityName: { $regex: `^${escapeRegex(candidate)}$`, $options: 'i' }
+        });
+        if (byMunicipality) {
+            return byMunicipality;
+        }
+    }
+
+    for (const candidate of candidates) {
+        const byDistrict = await Municipality.findOne({
+            district: { $regex: `^${escapeRegex(candidate)}$`, $options: 'i' }
+        });
+        if (byDistrict) {
+            return byDistrict;
+        }
+    }
+
+    for (const candidate of candidates) {
+        const byMunicipalityContains = await Municipality.findOne({
+            municipalityName: { $regex: escapeRegex(candidate), $options: 'i' }
+        });
+        if (byMunicipalityContains) {
+            return byMunicipalityContains;
+        }
+    }
+
+    for (const candidate of candidates) {
+        const byDistrictContains = await Municipality.findOne({
+            district: { $regex: escapeRegex(candidate), $options: 'i' }
+        });
+        if (byDistrictContains) {
+            return byDistrictContains;
+        }
+    }
+
+    return null;
+}
+
+async function getGoogleLocationCandidates(latitude, longitude) {
+    const apiKey = String(process.env.GOOGLE_MAPS_API_KEY || '').trim();
+    if (!apiKey) {
+        return [];
+    }
+
+    const url =
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${encodeURIComponent(latitude)},${encodeURIComponent(longitude)}` +
+        `&result_type=locality|administrative_area_level_2|administrative_area_level_1|sublocality` +
+        `&language=en&key=${encodeURIComponent(apiKey)}`;
+
+    const response = await fetch(url);
+    if (!response.ok) {
+        return [];
+    }
+
+    const payload = await response.json();
+    if (payload.status !== 'OK' && payload.status !== 'ZERO_RESULTS') {
+        return [];
+    }
+
+    const rawCandidates = [];
+    for (const result of payload.results || []) {
+        for (const component of result.address_components || []) {
+            rawCandidates.push(component.long_name);
+            rawCandidates.push(component.short_name);
+        }
+    }
+
+    return dedupeStrings(rawCandidates);
+}
+
+async function getOpenStreetMapLocationCandidates(latitude, longitude) {
+    const url =
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1` +
+        `&lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`;
+
+    const response = await fetch(url, {
+        headers: {
+            'User-Agent': 'Ecofy/1.0 (municipality-mapper)'
+        }
+    });
+
+    if (!response.ok) {
+        return [];
+    }
+
+    const payload = await response.json();
+    const address = payload?.address || {};
+    return dedupeStrings([
+        address.city,
+        address.town,
+        address.village,
+        address.county,
+        address.state_district,
+        address.state
+    ]);
+}
+
 function isBase64ImageDataUrl(value) {
     const normalized = String(value || '').trim();
     return /^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(normalized);
@@ -95,6 +230,35 @@ router.get('/municipality/by-district', async (req, res) => {
         });
     } catch (err) {
         return res.status(500).json({ error: 'Failed to fetch municipality details' });
+    }
+});
+
+router.get('/municipality/by-location', async (req, res) => {
+    const latitude = Number(req.query.latitude);
+    const longitude = Number(req.query.longitude);
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        return res.status(400).json({ error: 'latitude and longitude are required' });
+    }
+
+    try {
+        const googleCandidates = await getGoogleLocationCandidates(latitude, longitude);
+        const osmCandidates = await getOpenStreetMapLocationCandidates(latitude, longitude);
+        const municipality = await findMunicipalityByLocationCandidates([...googleCandidates, ...osmCandidates]);
+
+        if (!municipality) {
+            return res.status(404).json({ error: 'No municipality found for provided location' });
+        }
+
+        return res.status(200).json({
+            district: municipality.district,
+            municipalityName: municipality.municipalityName,
+            municipalityType: municipality.municipalityType,
+            contactEmail: municipality.contactEmail,
+            contactPhone: municipality.contactPhone
+        });
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to fetch municipality details from location' });
     }
 });
 

@@ -12,7 +12,7 @@ import * as Location from "expo-location";
 import { PrimaryButton } from "../../components/ui/PrimaryButton";
 import { TextField } from "../../components/ui/TextField";
 import { colors, spacing, typography } from "../../constants/theme";
-import { getMunicipalityByDistrict, submitBlog, submitIssue } from "../../services/community";
+import { getMunicipalityByDistrict, getMunicipalityByLocation, submitBlog, submitIssue } from "../../services/community";
 import { MunicipalityInfo } from "../../types/community";
 import { useAuth } from "../../context/AuthContext";
 
@@ -51,18 +51,7 @@ export default function SettingsTab() {
         accuracy: Location.Accuracy.Balanced
       });
       const { latitude, longitude } = location.coords;
-
-      const reverseResults = await Location.reverseGeocodeAsync({ latitude, longitude });
-      const address = reverseResults?.[0];
-      const districtCandidate =
-        address?.subregion || address?.district || address?.city || address?.region;
-
-      if (!districtCandidate) {
-        setLocationMessage("Could not detect district from your location");
-        return;
-      }
-
-      const result = await getMunicipalityByDistrict(String(districtCandidate));
+      const result = await getMunicipalityByLocation(latitude, longitude);
       setMunicipality(result);
       setLocationMessage(`Municipality mapped from location: ${result.municipalityName}`);
     } catch (err: any) {

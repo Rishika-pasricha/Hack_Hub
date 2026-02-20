@@ -1,12 +1,7 @@
 import { useEffect } from "react";
-import { Tabs } from "expo-router";
-import { useRouter } from "expo-router";
-import { Text } from "react-native";
+import { Tabs, useRouter } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useAuth } from "../../context/AuthContext";
-
-function Icon({ label }: { label: string }) {
-  return <Text>{label}</Text>;
-}
 
 export default function UserTabsLayout() {
   const router = useRouter();
@@ -24,10 +19,23 @@ export default function UserTabsLayout() {
 
   return (
     <Tabs screenOptions={{ headerShown: false }}>
-      <Tabs.Screen name="blogs" options={{ title: "Home", tabBarIcon: () => <Icon label="📰" /> }} />
-      <Tabs.Screen name="camera" options={{ title: "Camera", tabBarIcon: () => <Icon label="📷" /> }} />
-      <Tabs.Screen name="shop" options={{ title: "Shop", tabBarIcon: () => <Icon label="🛍️" /> }} />
-      <Tabs.Screen name="settings" options={{ title: "Settings", tabBarIcon: () => <Icon label="⚙️" /> }} />
+      <Tabs.Screen
+        name="blogs"
+        options={{ title: "Home", tabBarIcon: ({ color, size }) => <Ionicons name="newspaper-outline" size={size} color={color} /> }}
+      />
+      <Tabs.Screen name="issues" options={{ href: null }} />
+      <Tabs.Screen
+        name="camera"
+        options={{ title: "Camera", tabBarIcon: ({ color, size }) => <Ionicons name="camera-outline" size={size} color={color} /> }}
+      />
+      <Tabs.Screen
+        name="shop"
+        options={{ title: "Shop", tabBarIcon: ({ color, size }) => <Ionicons name="cart-outline" size={size} color={color} /> }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{ title: "Settings", tabBarIcon: ({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} /> }}
+      />
     </Tabs>
   );
 }

@@ -12,7 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { PrimaryButton } from "../../components/ui/PrimaryButton";
 import { TextField } from "../../components/ui/TextField";
 import { colors, spacing, typography } from "../../constants/theme";
-import { getMunicipalityByArea, submitBlog, submitIssue } from "../../services/community";
+import { getMunicipalityByArea, submitBlog } from "../../services/community";
 import { MunicipalityInfo } from "../../types/community";
 import { useAuth } from "../../context/AuthContext";
 
@@ -22,13 +22,7 @@ export default function SettingsTab() {
   const [municipality, setMunicipality] = useState<MunicipalityInfo | null>(null);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
-  const [issueMessage, setIssueMessage] = useState<string | null>(null);
   const [blogMessage, setBlogMessage] = useState<string | null>(null);
-
-  const [issueForm, setIssueForm] = useState({
-    subject: "",
-    description: ""
-  });
 
   const [blogForm, setBlogForm] = useState({
     title: "",
@@ -58,39 +52,6 @@ export default function SettingsTab() {
   useEffect(() => {
     resolveMunicipalityFromRegisteredArea();
   }, [user?.area]);
-
-  const handleIssueSubmit = async () => {
-    setIssueMessage(null);
-    if (!user) {
-      setIssueMessage("Please login first");
-      router.replace("/login");
-      return;
-    }
-
-    if (!municipality?.contactEmail) {
-      setIssueMessage("Please detect your municipality in Settings first");
-      return;
-    }
-
-    if (!fullName || !user.email || !issueForm.subject || !issueForm.description) {
-      setIssueMessage("Fill all issue form fields");
-      return;
-    }
-
-    try {
-      await submitIssue({
-        userName: fullName,
-        userEmail: user.email.toLowerCase(),
-        subject: issueForm.subject,
-        description: issueForm.description,
-        municipalityEmail: municipality.contactEmail
-      });
-      setIssueMessage("Issue submitted to municipality");
-      setIssueForm({ subject: "", description: "" });
-    } catch (err: any) {
-      setIssueMessage(err.message || "Failed to submit issue");
-    }
-  };
 
   const handleBlogSubmit = async () => {
     setBlogMessage(null);
@@ -154,26 +115,9 @@ export default function SettingsTab() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Submit Civic Issue</Text>
-        <Text style={styles.hint}>
-          Submitting as: {fullName || "Unknown User"} ({user?.email || "No email"})
-        </Text>
-        <TextField
-          label="Subject"
-          value={issueForm.subject}
-          onChangeText={(value) => setIssueForm((prev) => ({ ...prev, subject: value }))}
-        />
-        <Text style={styles.label}>Description</Text>
-        <TextInput
-          style={styles.textArea}
-          multiline
-          value={issueForm.description}
-          onChangeText={(value) => setIssueForm((prev) => ({ ...prev, description: value }))}
-          placeholder="Describe the issue in detail"
-          placeholderTextColor={colors.muted}
-        />
-        {issueMessage ? <Text style={styles.info}>{issueMessage}</Text> : null}
-        <PrimaryButton label="Submit Issue" onPress={handleIssueSubmit} />
+        <Text style={styles.cardTitle}>Civic Issues</Text>
+        <Text style={styles.hint}>View your previous issues, submit new ones, and mark resolved issues.</Text>
+        <PrimaryButton label="Go To My Issues" onPress={() => router.push("/issues")} />
       </View>
 
       <View style={styles.card}>

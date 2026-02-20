@@ -104,8 +104,8 @@ export default function AdminDashboard() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Citizen Issues ({issues.length})</Text>
-          {issues.length === 0 ? <Text style={styles.cardMeta}>No issues submitted</Text> : null}
+          <Text style={styles.cardTitle}>Open Citizen Issues ({issues.length})</Text>
+          {issues.length === 0 ? <Text style={styles.cardMeta}>No open issues</Text> : null}
           {issues.map((issue) => (
             <View key={issue._id} style={styles.itemBox}>
               <Text style={styles.itemTitle}>{issue.subject}</Text>

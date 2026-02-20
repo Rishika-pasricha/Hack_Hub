@@ -243,6 +243,46 @@ router.post('/issues/submit', async (req, res) => {
     }
 });
 
+router.get('/issues/my', async (req, res) => {
+    const userEmail = normalizeText(req.query.userEmail).toLowerCase();
+
+    if (!userEmail) {
+        return res.status(400).json({ error: 'userEmail is required' });
+    }
+
+    try {
+        const issues = await Issue.find({ userEmail }).sort({ createdAt: -1 }).limit(200);
+        return res.status(200).json(issues);
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to load user issues' });
+    }
+});
+
+router.patch('/issues/:id/resolve', async (req, res) => {
+    const { id } = req.params;
+    const userEmail = normalizeText(req.body.userEmail).toLowerCase();
+
+    if (!userEmail) {
+        return res.status(400).json({ error: 'userEmail is required' });
+    }
+
+    try {
+        const updated = await Issue.findOneAndUpdate(
+            { _id: id, userEmail, status: 'open' },
+            { status: 'resolved' },
+            { new: true }
+        );
+
+        if (!updated) {
+            return res.status(404).json({ error: 'Open issue not found for this user' });
+        }
+
+        return res.status(200).json({ message: 'Issue marked as resolved' });
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to resolve issue' });
+    }
+});
+
 router.get('/admin/pending-blogs', async (req, res) => {
     const municipalityEmail = normalizeText(req.query.municipalityEmail).toLowerCase();
 
@@ -295,7 +335,7 @@ router.get('/admin/issues', async (req, res) => {
     }
 
     try {
-        const issues = await Issue.find({ municipalityEmail }).sort({ createdAt: -1 }).limit(200);
+        const issues = await Issue.find({ municipalityEmail, status: 'open' }).sort({ createdAt: -1 }).limit(200);
         return res.status(200).json(issues);
     } catch (err) {
         return res.status(500).json({ error: 'Failed to load municipality issues' });

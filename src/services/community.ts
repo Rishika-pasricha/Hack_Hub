@@ -25,6 +25,17 @@ export function submitIssue(payload: {
   });
 }
 
+export function getMyIssues(userEmail: string) {
+  return apiRequest<Issue[]>(`/issues/my?userEmail=${encodeURIComponent(userEmail)}`);
+}
+
+export function resolveMyIssue(issueId: string, userEmail: string) {
+  return apiRequest<{ message: string }>(`/issues/${issueId}/resolve`, {
+    method: "PATCH",
+    body: { userEmail }
+  });
+}
+
 export function submitBlog(payload: {
   title: string;
   content: string;

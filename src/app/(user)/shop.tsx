@@ -1,5 +1,13 @@
-import { useState } from "react";
-import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useState } from "react";
+import {
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View
+} from "react-native";
 import { PrimaryButton } from "../../components/ui/PrimaryButton";
 import { colors, spacing, typography } from "../../constants/theme";
 import { getProducts } from "../../services/community";
@@ -9,65 +17,69 @@ import { useFocusEffect, useRouter } from "expo-router";
 export default function ShopTab() {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   const loadProducts = async () => {
     try {
-      setLoading(true);
       const data = await getProducts();
       setProducts(data);
     } catch (err: any) {
       setMessage(err.message || "Failed to load products");
-    } finally {
-      setLoading(false);
     }
   };
 
-  useFocusEffect(() => {
-    loadProducts();
-  });
+  useFocusEffect(
+    useCallback(() => {
+      loadProducts();
+      const interval = setInterval(loadProducts, 20000);
+      return () => clearInterval(interval);
+    }, [])
+  );
 
-  return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={loading} onRefresh={loadProducts} />}
-    >
+  const renderHeader = () => (
+    <View style={styles.header}>
       <Text style={styles.title}>Best Out Of Waste Shop</Text>
       <Text style={styles.subtitle}>Buy and sell upcycled products.</Text>
       <PrimaryButton label="Upload Product" onPress={() => router.push("/upload-product")} />
+      {message ? <Text style={styles.info}>{message}</Text> : null}
+      {products.length === 0 ? <Text style={styles.cardText}>No products uploaded yet.</Text> : null}
+    </View>
+  );
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Marketplace Products</Text>
-        {message ? <Text style={styles.info}>{message}</Text> : null}
-        {products.length === 0 ? <Text style={styles.cardText}>No products uploaded yet.</Text> : null}
-        {products.map((product) => (
-          <Pressable
-            key={product._id}
-            onPress={() => setExpandedId((prev) => (prev === product._id ? null : product._id))}
-            style={styles.productCard}
-          >
-            <Text style={styles.productTitle}>{product.productName}</Text>
-            <Text style={styles.productPrice}>Rs. {product.price}</Text>
-            <Image
-              source={{ uri: product.productImageUrl }}
-              style={styles.productImage}
-              resizeMode="cover"
-            />
-            {expandedId === product._id ? (
-              <View style={styles.detailBox}>
-                <Text style={styles.detailText}>Seller Email: {product.sellerEmail}</Text>
-                <Text style={styles.detailText}>City: {product.city}</Text>
-              </View>
-            ) : (
-              <Text style={styles.tapHint}>Tap to view seller details</Text>
-            )}
+  return (
+    <View style={styles.container}>
+      <FlatList
+        data={products}
+        keyExtractor={(item) => item._id}
+        numColumns={2}
+        ListHeaderComponent={renderHeader}
+        contentContainerStyle={styles.content}
+        columnWrapperStyle={styles.row}
+        renderItem={({ item }) => (
+          <Pressable style={styles.productCard} onPress={() => setSelectedProduct(item)}>
+            <Image source={{ uri: item.productImageUrl }} style={styles.productImage} resizeMode="cover" />
+            <Text style={styles.productTitle} numberOfLines={2}>
+              {item.productName}
+            </Text>
+            <Text style={styles.productPrice}>Rs. {item.price}</Text>
+            <Text style={styles.tapHint}>Tap for seller details</Text>
           </Pressable>
-        ))}
-      </View>
-    </ScrollView>
+        )}
+      />
+
+      <Modal visible={!!selectedProduct} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>{selectedProduct?.productName}</Text>
+            <Text style={styles.detailText}>Price: Rs. {selectedProduct?.price}</Text>
+            <Text style={styles.detailText}>Seller Email: {selectedProduct?.sellerEmail}</Text>
+            <Text style={styles.detailText}>City: {selectedProduct?.city}</Text>
+            <PrimaryButton label="Close" onPress={() => setSelectedProduct(null)} />
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
@@ -76,10 +88,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background
   },
-  content: {
-    padding: spacing.xl,
-    gap: spacing.lg
-  },
+  content: { padding: spacing.lg, paddingBottom: spacing.xxl },
+  header: { paddingBottom: spacing.lg, gap: spacing.sm },
+  row: { justifyContent: "space-between", marginBottom: spacing.md },
   title: {
     fontSize: typography.sizes.xl,
     fontWeight: "700",
@@ -88,19 +99,6 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: typography.sizes.sm,
     color: colors.textSecondary
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: spacing.md,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: spacing.sm
-  },
-  cardTitle: {
-    fontSize: typography.sizes.md,
-    fontWeight: "700",
-    color: colors.text
   },
   cardText: {
     fontSize: typography.sizes.sm,
@@ -111,36 +109,56 @@ const styles = StyleSheet.create({
     color: colors.primaryDark
   },
   productCard: {
-    marginTop: spacing.md,
+    width: "48%",
+    backgroundColor: colors.surface,
+    borderRadius: spacing.sm,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: spacing.sm,
-    padding: spacing.md,
-    backgroundColor: colors.background,
-    gap: spacing.xs
+    overflow: "hidden"
   },
   productTitle: {
-    fontSize: typography.sizes.md,
+    fontSize: typography.sizes.sm,
     fontWeight: "700",
-    color: colors.text
+    color: colors.text,
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.sm
   },
   productPrice: {
-    fontSize: typography.sizes.sm,
-    color: colors.primaryDark
+    fontSize: typography.sizes.md,
+    color: colors.primaryDark,
+    fontWeight: "700",
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.xs
   },
   tapHint: {
     fontSize: typography.sizes.xs,
-    color: colors.textSecondary
+    color: colors.textSecondary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm
   },
   productImage: {
     width: "100%",
-    height: 140,
-    borderRadius: spacing.sm,
-    backgroundColor: colors.surface
+    height: 130,
+    backgroundColor: colors.background
   },
-  detailBox: {
-    marginTop: spacing.xs,
-    gap: spacing.xs
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: spacing.xl
+  },
+  modalCard: {
+    width: "100%",
+    backgroundColor: colors.surface,
+    borderRadius: spacing.md,
+    padding: spacing.lg,
+    gap: spacing.sm
+  },
+  modalTitle: {
+    fontSize: typography.sizes.lg,
+    fontWeight: "700",
+    color: colors.text
   },
   detailText: {
     fontSize: typography.sizes.sm,

@@ -5,19 +5,52 @@ import { TextField } from "../components/ui/TextField";
 import { PrimaryButton } from "../components/ui/PrimaryButton";
 import { colors, spacing, typography } from "../constants/theme";
 import { submitProduct } from "../services/community";
+import * as ImagePicker from "expo-image-picker";
 
 export default function UploadProductScreen() {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [imagePreviewUri, setImagePreviewUri] = useState("");
   const [form, setForm] = useState({
     productName: "",
     price: "",
-    productImageUrl: "",
+    productImageData: "",
     sellerName: "",
     sellerEmail: "",
     city: ""
   });
+
+  const pickImageFromGallery = async () => {
+    setMessage(null);
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setMessage("Gallery permission is required");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.7,
+      base64: true
+    });
+
+    if (result.canceled || !result.assets?.[0]) {
+      return;
+    }
+
+    const asset = result.assets[0];
+    if (!asset.base64) {
+      setMessage("Could not read image data");
+      return;
+    }
+
+    const mimeType = asset.mimeType || "image/jpeg";
+    const dataUrl = `data:${mimeType};base64,${asset.base64}`;
+    setImagePreviewUri(asset.uri);
+    setForm((prev) => ({ ...prev, productImageData: dataUrl }));
+  };
 
   const handleSubmit = async () => {
     setMessage(null);
@@ -25,7 +58,7 @@ export default function UploadProductScreen() {
     if (
       !form.productName ||
       !form.price ||
-      !form.productImageUrl ||
+      !form.productImageData ||
       !form.sellerName ||
       !form.sellerEmail ||
       !form.city
@@ -45,7 +78,7 @@ export default function UploadProductScreen() {
       await submitProduct({
         productName: form.productName,
         price: parsedPrice,
-        productImageUrl: form.productImageUrl,
+        productImageUrl: form.productImageData,
         sellerName: form.sellerName,
         sellerEmail: form.sellerEmail.toLowerCase(),
         city: form.city
@@ -76,15 +109,8 @@ export default function UploadProductScreen() {
           keyboardType="numeric"
           onChangeText={(value) => setForm((prev) => ({ ...prev, price: value }))}
         />
-        <TextField
-          label="Product Image URL"
-          value={form.productImageUrl}
-          onChangeText={(value) => setForm((prev) => ({ ...prev, productImageUrl: value }))}
-          placeholder="https://..."
-        />
-        {form.productImageUrl ? (
-          <Image source={{ uri: form.productImageUrl }} style={styles.preview} resizeMode="cover" />
-        ) : null}
+        <PrimaryButton label="Pick Image From Gallery" onPress={pickImageFromGallery} />
+        {imagePreviewUri ? <Image source={{ uri: imagePreviewUri }} style={styles.preview} resizeMode="cover" /> : null}
         <TextField
           label="Your Name"
           value={form.sellerName}

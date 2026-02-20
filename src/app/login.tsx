@@ -46,7 +46,7 @@ export default function LoginScreen() {
       setMessage("Login successful");
       setErrors({});
       // TODO: Store token if returned
-      router.push("/home");
+      router.push(response.role === "admin" ? "/admin-dashboard" : "/home");
     } catch (err: any) {
       setMessage(err.message || "Login failed");
     } finally {

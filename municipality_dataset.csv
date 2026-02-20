@@ -1,0 +1,72 @@
+District,Municipality_Name,Municipality_Type,Area_SqKm,Population,Contact_Email,Contact_Phone
+GURUGRAM,Gurugram,CORPORATION,297.99,1120280,cmc@mcg.gov.in,18001801817
+GURUGRAM,Manesar,CORPORATION,138.18,161696,cmc.manesar@hry.nic.in,01242012232
+GURUGRAM,Sohna,COUNCIL,70.48,77886,eomc.sohna@hry.nic.in,18008900929
+GURUGRAM,Pataudi Jatauli Mandi,COUNCIL,62.99,66972,eomc.pataudi@hry.nic.in,18008900929
+GURUGRAM,Farrukh Nagar,COMMITTEE,20.21,21711,secymc.farrukhnagar@hry.nic.in,01242275000
+FARIDABAD,Faridabad,CORPORATION,285.89,2029164,mcfbd@hry.nic.in,01292415549
+AMBALA,Ambala,CORPORATION,67.56,258093,cmc.ambala@hry.nic.in,18008900929
+AMBALA,Ambala Sadar,COUNCIL,56.27,270215,eomc.ambalasadar@hry.nic.in,18008900929
+AMBALA,Barara,COMMITTEE,13.89,27710,secymc.barara@hry.nic.in,18008900929
+AMBALA,Naraingarh,COMMITTEE,8.95,27360,secymc.naraingarh@hry.nic.in,18008900929
+BHIWANI,Bhiwani,COUNCIL,40.52,231110,eomc.bhiwani@hry.nic.in,18008900929
+BHIWANI,Bawani Khera,COMMITTEE,9.87,26412,secymc.bawanikhera@hry.nic.in,18008900929
+BHIWANI,Loharu,COMMITTEE,9.95,16496,secymc.loharu@hry.nic.in,18008900929
+BHIWANI,Siwani,COMMITTEE,4.49,23615,secymc.siwani@hry.nic.in,18008900929
+CHARKHI DADRI,Charkhi Dadri,COUNCIL,15.80,60211,eomc.charkhidadri@hry.nic.in,18008900929
+FATEHABAD,Fatehabad,COUNCIL,28.15,86755,eomc.fatehabad@hry.nic.in,18008900929
+FATEHABAD,Tohana,COUNCIL,19.57,74952,eomc.tohana@hry.nic.in,18008900929
+FATEHABAD,Bhuna,COMMITTEE,4.25,31958,secymc.bhuna@hry.nic.in,18008900929
+FATEHABAD,Jakhal,COMMITTEE,2.67,14647,secymc.jakhal@hry.nic.in,18008900929
+FATEHABAD,Ratia,COMMITTEE,8.52,43445,secymc.ratia@hry.nic.in,18008900929
+HISAR,Hisar,CORPORATION,92.92,385038,cmc.hisar@hry.nic.in,18008900929
+HISAR,Barwala,COUNCIL,9.34,50746,eomc.barwala@hry.nic.in,18008900929
+HISAR,Uklana,COMMITTEE,3.86,18690,secymc.uklana@hry.nic.in,18008900929
+HANSI,Hansi,CORPORATION,13.53,92088,cmc.hansi@hry.nic.in,18008900929
+HANSI,Narnaund,COMMITTEE,6.39,20698,secymc.narnaund@hry.nic.in,18008900929
+JHAJJAR,Bahadurgarh,COUNCIL,29.29,221002,eomc.bahadurgarh@hry.nic.in,18008900929
+JHAJJAR,Jhajjar,COUNCIL,35.78,54804,eomc.jhajjar@hry.nic.in,18008900929
+JHAJJAR,Beri,COMMITTEE,1.29,17372,secymc.beri@hry.nic.in,18008900929
+JIND,Jind,COUNCIL,38.24,184136,eomc.jind@hry.nic.in,18008900929
+JIND,Narwana,COUNCIL,9.53,67148,eomc.narwana@hry.nic.in,18008900929
+JIND,Julana,COMMITTEE,13.85,20347,secymc.julana@hry.nic.in,18008900929
+JIND,Safidon,COMMITTEE,8.38,37857,secymc.safidon@hry.nic.in,18008900929
+JIND,Uchana,COMMITTEE,4.28,19205,secymc.uchana@hry.nic.in,18008900929
+KAITHAL,Kaithal,COUNCIL,39.87,168653,eomc.kaithal@hry.nic.in,18008900929
+KAITHAL,Cheeka,COMMITTEE,31.05,43672,secymc.cheeka@hry.nic.in,18008900929
+KAITHAL,Kalayat,COMMITTEE,12.68,21095,secymc.kalayat@hry.nic.in,18008900929
+KAITHAL,Pundri,COMMITTEE,27.68,22578,secymc.pundri@hry.nic.in,18008900929
+KARNAL,Karnal,CORPORATION,90.92,411819,cmc.karnal@hry.nic.in,18008900929
+KARNAL,Assandh,COMMITTEE,7.54,32785,secymc.assandh@gmail.com,18008900929
+KARNAL,Gharaunda,COMMITTEE,18.36,44455,secymc.gharaunda@hry.nic.in,18008900929
+KARNAL,Indri,COMMITTEE,1.88,19820,secymc.indri@gmail.com,18008900929
+KARNAL,Nilokheri,COMMITTEE,5.08,20188,secretarymcnilokheri@gmail.com,18008900929
+KARNAL,Nissing,COMMITTEE,4.70,19897,secymc.nissing@yahoo.com,18008900929
+KARNAL,Taraori,COMMITTEE,5.81,29311,secymc.tarauri@hry.nic.in,18008900929
+KURUKSHETRA,Thaneser,COUNCIL,32.50,181565,eomc.thanesar@hry.nic.in,18008900929
+KURUKSHETRA,Ismailabad,COMMITTEE,11.98,15400,secymc.ismailabad@hry.nic.in,18008900929
+KURUKSHETRA,Ladwa,COMMITTEE,7.98,31835,secymc.ladwa@hry.nic.in,18008900929
+KURUKSHETRA,Pehowa,COMMITTEE,13.10,43769,secymc.pehowa@hry.nic.in,18008900929
+KURUKSHETRA,Shahabad,COMMITTEE,11.83,45612,secymc.shahabad@hry.nic.in,18008900929
+MAHENDRAGARH,Narnaul,COUNCIL,57.64,104924,eomcnarnaul@gmail.com,18008900929
+MAHENDRAGARH,Ateli Mandi,COMMITTEE,7.27,7494,secy.mcateli@gmail.com,18008900929
+MAHENDRAGARH,Kanina,COMMITTEE,4.39,15018,mckanina@gmail.com,18008900929
+MAHENDRAGARH,Mahendergarh,COMMITTEE,8.97,32281,secymc.mohindergarh@hry.nic.in,18008900929
+MAHENDRAGARH,Nangal Chaudhary,COMMITTEE,14.60,15131,secy.mc.nangalchoudhary@gmail.com,18008900929
+NUH,Nuh,COUNCIL,7.21,26015,eomc.nuh@hry.nic.in,18008900929
+NUH,Firozpur Zhirka,COMMITTEE,5.69,32278,secymc.firozpurzhirka@hry.nic.in,18008900929
+NUH,Punhana,COMMITTEE,10.19,32813,secymc.punhana@hry.nic.in,18008900929
+NUH,Tauru,COMMITTEE,11.18,27490,secymc.tauru@hry.nic.in,18008900929
+PANCHKULA,Panchkula,CORPORATION,96.21,298949,cmc.panchkula@hry.nic.in,18008900929
+PANCHKULA,Kalka,COUNCIL,56.94,135895,eomc.kalka@hry.nic.in,18008900929
+PANIPAT,Panipat,CORPORATION,60.47,696189,cmc.panipat@hry.nic.in,18008900929
+PANIPAT,Samalkha,COUNCIL,10.54,48919,eomc.samalkha@hry.nic.in,18008900929
+PALWAL,Palwal,COUNCIL,59.17,234284,eomc.palwal@hry.nic.in,18008900929
+PALWAL,Hodal,COUNCIL,39.89,75380,eomc.hodal@hry.nic.in,18008900929
+PALWAL,Hathin,COMMITTEE,4.10,19719,secymc.hathin@hry.nic.in,18008900929
+REWARI,Rewari,COUNCIL,25.78,151769,eomc.rewari@hry.nic.in,18008900929
+REWARI,Bawal,COMMITTEE,3.76,19241,secymc.bawal@hry.nic.in,18008900929
+REWARI,Dharuhera,COMMITTEE,11.51,34557,secymc.dharuhera@hry.nic.in,18008900929
+ROHTAK,Rohtak,CORPORATION,100.00,464146,cmc-rohtak@ulbharyana.gov.in,18008900929
+ROHTAK,Kalanaur,COMMITTEE,6.92,27115,secymc.kalanaur@hry.nic.in,18008900929
+ROHTAK,Meham,COMMITTEE,4.49,24571,secymc.meham@hry.nic.in,18008900929

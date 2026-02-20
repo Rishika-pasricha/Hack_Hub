@@ -4,6 +4,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const { generateOTP, sendOTPEmail } = require('../utils/emailService');
+const { isMunicipalityEmail } = require('../utils/municipalityEmails');
 
 router.post('/register', async (req, res) => {
     const { firstName, lastName, email, password } = req.body;
@@ -25,8 +26,16 @@ router.post('/register', async (req, res) => {
             email: normalizedEmail,
             passwordHash
         });
-        return res.status(201).json(user);
+        return res.status(201).json({
+            id: user._id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email
+        });
     } catch (err) {
+        if (err && err.code === 11000) {
+            return res.status(409).json({ error: 'Email already registered' });
+        }
         return res.status(500).json({ error: 'Failed to create user' });
     }
 });
@@ -56,7 +65,8 @@ router.post('/login', async (req, res) => {
             id: user._id,
             firstName: user.firstName,
             lastName: user.lastName,
-            email: user.email
+            email: user.email,
+            role: isMunicipalityEmail(normalizedEmail) ? 'admin' : 'user'
         });
     } catch (err) {
         return res.status(500).json({ error: 'Failed to login' });
@@ -74,6 +84,11 @@ router.post('/forgot-password', async (req, res) => {
 
     try {
         const normalizedEmail = String(email).toLowerCase();
+
+        if (isMunicipalityEmail(normalizedEmail)) {
+            return res.status(403).json({ error: 'Password reset is not available for municipality accounts' });
+        }
+
         const user = await usermodel.findOne({ email: normalizedEmail });
 
         if (!user) {
@@ -118,6 +133,11 @@ router.post('/verify-otp', async (req, res) => {
 
     try {
         const normalizedEmail = String(email).toLowerCase();
+
+        if (isMunicipalityEmail(normalizedEmail)) {
+            return res.status(403).json({ error: 'Password reset is not available for municipality accounts' });
+        }
+
         const user = await usermodel.findOne({ email: normalizedEmail });
 
         if (!user) {
@@ -153,6 +173,11 @@ router.post('/reset-password', async (req, res) => {
 
     try {
         const normalizedEmail = String(email).toLowerCase();
+
+        if (isMunicipalityEmail(normalizedEmail)) {
+            return res.status(403).json({ error: 'Password reset is not available for municipality accounts' });
+        }
+
         const user = await usermodel.findOne({ email: normalizedEmail });
 
         if (!user) {

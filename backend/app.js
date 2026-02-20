@@ -1,7 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-require('./config/db'); // Initialize MongoDB connection
+const mongoose = require('./config/db'); // Initialize MongoDB connection
+const { syncMunicipalitiesFromCsv } = require('./utils/municipalitySync');
 const app = express();
 const userRouter = require('./routes/userRouter');
 
@@ -15,6 +16,14 @@ app.get('/',(req,res)=>{
 
 app.use('/', userRouter)
 
+mongoose.connection.once('open', async () => {
+    try {
+        const { upserts } = await syncMunicipalitiesFromCsv();
+        console.log(`Municipality sync complete on startup. Upserted rows: ${upserts}`);
+    } catch (err) {
+        console.error('Municipality sync failed on startup:', err.message);
+    }
+});
 
 const PORT = process.env.PORT || 8082;
 

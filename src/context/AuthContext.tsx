@@ -2,7 +2,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { LoginResponse } from "../types/auth";
 
-export type AuthUser = Pick<LoginResponse, "id" | "firstName" | "lastName" | "email" | "area" | "role" | "token">;
+export type AuthUser = Pick<
+  LoginResponse,
+  "id" | "firstName" | "lastName" | "email" | "area" | "profileImageUrl" | "role" | "token"
+>;
 const AUTH_STORAGE_KEY = "ecofy.auth.user";
 
 type AuthContextValue = {

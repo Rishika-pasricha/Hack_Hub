@@ -356,7 +356,11 @@ export default function BlogsTab() {
           </Pressable>
           <Pressable style={styles.profileMenuTrigger} onPress={() => setProfileMenuOpen(true)}>
             <View style={styles.profileButton}>
-              <Text style={styles.profileButtonText}>{profileInitials}</Text>
+              {user?.profileImageUrl ? (
+                <Image source={{ uri: user.profileImageUrl }} style={styles.profileButtonImage} resizeMode="cover" />
+              ) : (
+                <Text style={styles.profileButtonText}>{profileInitials}</Text>
+              )}
             </View>
           </Pressable>
         </View>
@@ -604,6 +608,11 @@ const styles = StyleSheet.create({
     color: "#1C5D43",
     fontWeight: "700",
     fontSize: typography.sizes.sm
+  },
+  profileButtonImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 21
   },
   card: {
     backgroundColor: colors.surface,

@@ -35,3 +35,16 @@ export function resetPassword(payload: ResetPasswordPayload) {
     body: payload
   });
 }
+
+export function updateProfile(payload: {
+  userEmail: string;
+  firstName: string;
+  lastName: string;
+  area: string;
+  profileImageUrl?: string;
+}) {
+  return apiRequest<LoginResponse>("/profile", {
+    method: "PATCH",
+    body: payload
+  });
+}

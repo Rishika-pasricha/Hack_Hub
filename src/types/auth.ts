@@ -12,6 +12,7 @@ export type RegisterResponse = {
   lastName: string;
   email: string;
   area: string;
+  profileImageUrl?: string;
 };
 
 export type LoginPayload = {
@@ -25,6 +26,7 @@ export type LoginResponse = {
   lastName: string;
   email: string;
   area: string;
+  profileImageUrl?: string;
   role: "user" | "admin";
   token?: string;
 };

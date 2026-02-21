@@ -26,7 +26,7 @@ type BlogMedia = {
 
 export default function SettingsTab() {
   const router = useRouter();
-  const { user, fullName, logout } = useAuth();
+  const { user, fullName } = useAuth();
   const [municipality, setMunicipality] = useState<MunicipalityInfo | null>(null);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
@@ -245,16 +245,6 @@ export default function SettingsTab() {
           <PrimaryButton label="Submit Blog For Approval" onPress={handleBlogSubmit} />
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Account</Text>
-          <PrimaryButton
-            label="Logout"
-            onPress={() => {
-              logout();
-              router.replace("/login");
-            }}
-          />
-        </View>
       </ScrollView>
     </SafeAreaView>
   );

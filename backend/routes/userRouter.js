@@ -60,7 +60,8 @@ router.post('/register', async (req, res) => {
             firstName: user.firstName,
             lastName: user.lastName,
             email: user.email,
-            area: user.area
+            area: user.area,
+            profileImageUrl: user.profileImageUrl || ''
         });
     } catch (err) {
         if (err && err.code === 11000) {
@@ -159,10 +160,58 @@ router.post('/login', async (req, res) => {
             lastName: user.lastName,
             email: user.email,
             area: user.area || user.district || '',
+            profileImageUrl: user.profileImageUrl || '',
             role: 'user'
         });
     } catch (err) {
         return res.status(500).json({ error: 'Failed to login' });
+    }
+});
+
+router.patch('/profile', async (req, res) => {
+    const userEmail = normalizeText(req.body.userEmail).toLowerCase();
+    const firstName = normalizeText(req.body.firstName);
+    const lastName = normalizeText(req.body.lastName);
+    const area = normalizeText(req.body.area);
+    const profileImageUrl = String(req.body.profileImageUrl || '').trim();
+
+    if (!userEmail) {
+        return res.status(400).json({ error: 'userEmail is required' });
+    }
+    if (!firstName || !lastName || !area) {
+        return res.status(400).json({ error: 'firstName, lastName and area are required' });
+    }
+    if (profileImageUrl && !isBase64ImageDataUrl(profileImageUrl)) {
+        return res.status(400).json({ error: 'Please upload profile image from gallery' });
+    }
+
+    try {
+        const user = await usermodel.findOneAndUpdate(
+            { email: userEmail },
+            {
+                firstName,
+                lastName,
+                area,
+                profileImageUrl
+            },
+            { new: true }
+        );
+
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        return res.status(200).json({
+            id: user._id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            area: user.area,
+            profileImageUrl: user.profileImageUrl || '',
+            role: 'user'
+        });
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to update profile' });
     }
 });
 

@@ -65,6 +65,45 @@ export function submitBlog(payload: {
   });
 }
 
+export function getMyBlogs(authorEmail: string) {
+  return apiRequest<BlogPost[]>(`/blogs/my?authorEmail=${encodeURIComponent(authorEmail)}`);
+}
+
+export function updateMyBlog(
+  blogId: string,
+  payload: {
+    authorEmail: string;
+    title: string;
+    content: string;
+  }
+) {
+  return apiRequest<{ message: string }>(`/blogs/${blogId}`, {
+    method: "PATCH",
+    body: payload
+  });
+}
+
+export function deleteMyBlog(blogId: string, authorEmail: string) {
+  return apiRequest<{ message: string }>(`/blogs/${blogId}`, {
+    method: "DELETE",
+    body: { authorEmail }
+  });
+}
+
+export function getLikeNotifications(userEmail: string) {
+  return apiRequest<
+    Array<{
+      id: string;
+      likerEmail: string;
+      likerName: string;
+      postId: string;
+      postTitle: string;
+      message: string;
+      createdAt: string;
+    }>
+  >(`/notifications/likes?userEmail=${encodeURIComponent(userEmail)}`);
+}
+
 export function getPendingBlogsForAdmin(municipalityEmail: string) {
   return apiRequest<BlogPost[]>(
     `/admin/pending-blogs?municipalityEmail=${encodeURIComponent(municipalityEmail)}`

@@ -191,6 +191,92 @@ router.get('/blogs', async (req, res) => {
     }
 });
 
+router.get('/blogs/my', async (req, res) => {
+    const authorEmail = normalizeText(req.query.authorEmail).toLowerCase();
+
+    if (!authorEmail) {
+        return res.status(400).json({ error: 'authorEmail is required' });
+    }
+
+    try {
+        const posts = await BlogPost.find({ authorEmail }).sort({ createdAt: -1 }).limit(500);
+        return res.status(200).json(posts);
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to load your posts' });
+    }
+});
+
+router.get('/notifications/likes', async (req, res) => {
+    const userEmail = normalizeText(req.query.userEmail).toLowerCase();
+
+    if (!userEmail) {
+        return res.status(400).json({ error: 'userEmail is required' });
+    }
+
+    try {
+        const posts = await BlogPost.find({ authorEmail: userEmail })
+            .select('_id title likes createdAt updatedAt')
+            .sort({ updatedAt: -1, createdAt: -1 })
+            .lean();
+
+        const likerEmails = Array.from(
+            new Set(
+                posts.flatMap((post) => (Array.isArray(post.likes) ? post.likes : []))
+                    .map((email) => String(email || '').toLowerCase())
+                    .filter((email) => email && email !== userEmail)
+            )
+        );
+
+        const [users, municipalities] = await Promise.all([
+            likerEmails.length > 0
+                ? usermodel.find({ email: { $in: likerEmails } }).select('email firstName lastName').lean()
+                : [],
+            likerEmails.length > 0
+                ? Municipality.find({ contactEmail: { $in: likerEmails } }).select('contactEmail municipalityName').lean()
+                : []
+        ]);
+
+        const displayNameByEmail = new Map();
+        users.forEach((item) => {
+            const fullName = `${item.firstName || ''} ${item.lastName || ''}`.trim();
+            displayNameByEmail.set(String(item.email || '').toLowerCase(), fullName || String(item.email || '').toLowerCase());
+        });
+        municipalities.forEach((item) => {
+            displayNameByEmail.set(
+                String(item.contactEmail || '').toLowerCase(),
+                String(item.municipalityName || '').trim() || String(item.contactEmail || '').toLowerCase()
+            );
+        });
+
+        const notifications = [];
+        posts.forEach((post) => {
+            const likes = Array.isArray(post.likes) ? post.likes : [];
+            likes.forEach((likerEmailRaw) => {
+                const likerEmail = String(likerEmailRaw || '').toLowerCase();
+                if (!likerEmail || likerEmail === userEmail) {
+                    return;
+                }
+                const fallbackName = likerEmail.split('@')[0] || 'Someone';
+                const likerName = displayNameByEmail.get(likerEmail) || fallbackName;
+                notifications.push({
+                    id: `${post._id}:${likerEmail}`,
+                    likerEmail,
+                    likerName,
+                    postId: post._id,
+                    postTitle: post.title,
+                    message: `${likerName} liked your post ${post.title}`,
+                    createdAt: post.updatedAt || post.createdAt
+                });
+            });
+        });
+
+        notifications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        return res.status(200).json(notifications.slice(0, 100));
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to load like notifications' });
+    }
+});
+
 router.patch('/blogs/:id/like', async (req, res) => {
     const { id } = req.params;
     const userEmail = normalizeText(req.body.userEmail).toLowerCase();
@@ -221,6 +307,68 @@ router.patch('/blogs/:id/like', async (req, res) => {
         });
     } catch (err) {
         return res.status(500).json({ error: 'Failed to update like status' });
+    }
+});
+
+router.patch('/blogs/:id', async (req, res) => {
+    const { id } = req.params;
+    const authorEmail = normalizeText(req.body.authorEmail).toLowerCase();
+    const title = normalizeText(req.body.title);
+    const content = String(req.body.content || '').trim();
+
+    if (!authorEmail) {
+        return res.status(400).json({ error: 'authorEmail is required' });
+    }
+
+    if (!title) {
+        return res.status(400).json({ error: 'title is required' });
+    }
+
+    try {
+        const post = await BlogPost.findOne({ _id: id, authorEmail });
+
+        if (!post) {
+            return res.status(404).json({ error: 'Post not found for this account' });
+        }
+
+        if (!content && (!Array.isArray(post.media) || post.media.length === 0)) {
+            return res.status(400).json({ error: 'Add text content or keep media to update this post' });
+        }
+
+        post.title = title;
+        post.content = content;
+
+        // Approved posts require re-approval after user edits.
+        if (post.status === 'approved') {
+            post.status = 'pending';
+            post.approvedAt = null;
+        }
+
+        await post.save();
+        return res.status(200).json({ message: 'Post updated successfully' });
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to update post' });
+    }
+});
+
+router.delete('/blogs/:id', async (req, res) => {
+    const { id } = req.params;
+    const authorEmail = normalizeText(req.body.authorEmail).toLowerCase();
+
+    if (!authorEmail) {
+        return res.status(400).json({ error: 'authorEmail is required' });
+    }
+
+    try {
+        const deleted = await BlogPost.findOneAndDelete({ _id: id, authorEmail });
+
+        if (!deleted) {
+            return res.status(404).json({ error: 'Post not found for this account' });
+        }
+
+        return res.status(200).json({ message: 'Post deleted successfully' });
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to delete post' });
     }
 });
 

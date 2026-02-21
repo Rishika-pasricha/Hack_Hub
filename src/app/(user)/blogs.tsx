@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { colors, spacing, typography } from "../../constants/theme";
-import { getApprovedBlogs, toggleBlogLike } from "../../services/community";
+import { getApprovedBlogs, getLikeNotifications, toggleBlogLike } from "../../services/community";
 import { BlogPost } from "../../types/community";
 import { useAuth } from "../../context/AuthContext";
 
@@ -92,6 +93,7 @@ function FeedVideo({
 }
 
 export default function BlogsTab() {
+  const router = useRouter();
   const { user } = useAuth();
   const [blogs, setBlogs] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(false);
@@ -99,6 +101,13 @@ export default function BlogsTab() {
   const [likingPostId, setLikingPostId] = useState<string | null>(null);
   const [muteVideos, setMuteVideos] = useState(true);
   const [activeVideoKey, setActiveVideoKey] = useState<string | null>(null);
+  const [expandedImageUri, setExpandedImageUri] = useState<string | null>(null);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<
+    Array<{ id: string; message: string; createdAt: string; postTitle: string; likerName: string }>
+  >([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const scrollYRef = useRef(0);
   const viewportHeightRef = useRef(0);
   const videoLayoutRef = useRef<Record<string, { y: number; height: number }>>({});
@@ -109,6 +118,22 @@ export default function BlogsTab() {
       return "Community";
     }
     return user.firstName?.trim() || "Community";
+  }, [user]);
+
+  const profileInitials = useMemo(() => {
+    if (!user) {
+      return "U";
+    }
+    const raw = `${user.firstName || ""} ${user.lastName || ""}`;
+    const chunks = raw
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2);
+    if (chunks.length === 0) {
+      return "U";
+    }
+    return chunks.map((chunk) => chunk[0]?.toUpperCase() || "").join("");
   }, [user]);
 
   const toRelativeDate = (iso: string) => {
@@ -153,8 +178,24 @@ export default function BlogsTab() {
     }
   };
 
+  const loadNotifications = async () => {
+    if (!user?.email) {
+      return;
+    }
+    try {
+      setNotificationsLoading(true);
+      const data = await getLikeNotifications(user.email.toLowerCase());
+      setNotifications(data);
+    } catch {
+      setNotifications([]);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadBlogs();
+    loadNotifications();
   }, [user?.email]);
 
   useEffect(() => {
@@ -287,8 +328,33 @@ export default function BlogsTab() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.statusBar}>
+        <Text style={styles.brandTitle}>Ecofy</Text>
+        <View style={styles.topActions}>
+          <Pressable
+            style={styles.notificationButton}
+            onPress={() => {
+              setNotificationsOpen(true);
+              loadNotifications();
+            }}
+          >
+            <Ionicons name="notifications-outline" size={20} color={colors.text} />
+            {notifications.length > 0 ? (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>{Math.min(notifications.length, 9)}+</Text>
+              </View>
+            ) : null}
+          </Pressable>
+          <Pressable style={styles.profileMenuTrigger} onPress={() => setProfileMenuOpen(true)}>
+            <View style={styles.profileButton}>
+              <Text style={styles.profileButtonText}>{profileInitials}</Text>
+            </View>
+          </Pressable>
+        </View>
+      </View>
+
       <ScrollView
-        style={styles.container}
+        style={styles.feedScroll}
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={loadBlogs} />}
         scrollEventThrottle={16}
@@ -301,22 +367,9 @@ export default function BlogsTab() {
           updateAutoplayByViewport();
         }}
       >
-        <View style={styles.heroCard}>
-          <Text style={styles.heroTop}>Hello, {greetingName}</Text>
-          <Text style={styles.title}>Ecofy Community Feed</Text>
-          <Text style={styles.subtitle}>
-            Local updates, approved stories, and practical sustainability ideas from your municipality.
-          </Text>
+        <View style={styles.helloBlock}>
+          <Text style={styles.helloText}>Hello, {greetingName}</Text>
         </View>
-
-        <Text style={styles.subtitle}>Municipality posts and approved community submissions appear here.</Text>
-        <View style={styles.toolbarRow}>
-          <Pressable style={styles.muteToggle} onPress={() => setMuteVideos((prev) => !prev)}>
-            <Ionicons name={muteVideos ? "volume-mute-outline" : "volume-high-outline"} size={16} color={colors.textSecondary} />
-            <Text style={styles.muteToggleText}>{muteVideos ? "Videos muted" : "Videos unmuted"}</Text>
-          </Pressable>
-        </View>
-
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         {blogs.length === 0 && !loading ? (
@@ -345,12 +398,9 @@ export default function BlogsTab() {
 
             {blog.media?.map((mediaItem, index) =>
               mediaItem.mediaType === "image" ? (
-                <Image
-                  key={`${blog._id}-media-${index}`}
-                  source={{ uri: mediaItem.mediaUrl }}
-                  style={styles.mediaPreview}
-                  resizeMode="cover"
-                />
+                <Pressable key={`${blog._id}-media-${index}`} onPress={() => setExpandedImageUri(mediaItem.mediaUrl)}>
+                  <Image source={{ uri: mediaItem.mediaUrl }} style={styles.mediaPreview} resizeMode="cover" />
+                </Pressable>
               ) : (
                 <FeedVideo
                   key={`${blog._id}-media-${index}`}
@@ -383,6 +433,60 @@ export default function BlogsTab() {
           </View>
         ))}
       </ScrollView>
+      <Modal visible={notificationsOpen} transparent animationType="fade" onRequestClose={() => setNotificationsOpen(false)}>
+        <Pressable style={styles.profileMenuBackdrop} onPress={() => setNotificationsOpen(false)}>
+          <View style={styles.notificationsCard}>
+            <Text style={styles.notificationsTitle}>Notifications</Text>
+            {notificationsLoading ? <Text style={styles.notificationsMeta}>Loading...</Text> : null}
+            {!notificationsLoading && notifications.length === 0 ? (
+              <Text style={styles.notificationsMeta}>No notifications yet</Text>
+            ) : null}
+            {!notificationsLoading
+              ? notifications.map((item) => (
+                  <Text key={item.id} style={styles.notificationItemText}>
+                    {item.likerName} liked your post {item.postTitle}
+                  </Text>
+                ))
+              : null}
+          </View>
+        </Pressable>
+      </Modal>
+      <Modal visible={Boolean(expandedImageUri)} transparent animationType="fade" onRequestClose={() => setExpandedImageUri(null)}>
+        <View style={styles.imageModalBackdrop}>
+          <Pressable style={styles.imageModalClose} onPress={() => setExpandedImageUri(null)}>
+            <Ionicons name="close" size={24} color="#FFFFFF" />
+          </Pressable>
+          <Pressable style={styles.imageModalContent} onPress={() => setExpandedImageUri(null)}>
+            {expandedImageUri ? <Image source={{ uri: expandedImageUri }} style={styles.expandedImage} resizeMode="contain" /> : null}
+          </Pressable>
+        </View>
+      </Modal>
+      <Modal visible={profileMenuOpen} transparent animationType="fade" onRequestClose={() => setProfileMenuOpen(false)}>
+        <Pressable style={styles.profileMenuBackdrop} onPress={() => setProfileMenuOpen(false)}>
+          <View style={styles.profileMenuCard}>
+            <Pressable
+              style={styles.profileMenuItem}
+              onPress={() => {
+                setProfileMenuOpen(false);
+                router.push("/profile-settings");
+              }}
+            >
+              <Ionicons name="settings-outline" size={18} color={colors.text} />
+              <Text style={styles.profileMenuText}>Settings</Text>
+            </Pressable>
+            <Pressable
+              style={styles.profileMenuItem}
+              onPress={() => {
+                setProfileMenuOpen(false);
+                router.push("/my-posts");
+              }}
+            >
+              <Ionicons name="document-text-outline" size={18} color={colors.text} />
+              <Text style={styles.profileMenuText}>My Posts</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -393,50 +497,93 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background
   },
   content: {
-    padding: spacing.xl,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
     gap: spacing.lg
   },
-  heroCard: {
-    backgroundColor: "#E9F8EE",
-    borderRadius: spacing.md,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: "#C4E8CF",
-    gap: spacing.xs
+  feedScroll: {
+    flex: 1
   },
-  heroTop: {
-    color: "#2D6A4F",
-    fontSize: typography.sizes.sm,
-    fontWeight: "600"
-  },
-  title: {
-    fontSize: typography.sizes.xl,
-    fontWeight: "700",
-    color: colors.text
-  },
-  subtitle: {
-    fontSize: typography.sizes.sm,
-    color: colors.textSecondary
-  },
-  toolbarRow: {
-    flexDirection: "row",
-    justifyContent: "flex-start"
-  },
-  muteToggle: {
+  statusBar: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.xs,
+    justifyContent: "space-between",
+    backgroundColor: "#2D6A4F",
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm
+  },
+  brandTitle: {
+    color: "#FFFFFF",
+    fontSize: typography.sizes.lg,
+    fontWeight: "800"
+  },
+  topActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm
+  },
+  notificationButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: colors.surface
   },
-  muteToggleText: {
-    fontSize: typography.sizes.xs,
-    color: colors.textSecondary,
-    fontWeight: "600"
+  notificationBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#E5484D",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4
+  },
+  notificationBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "700"
+  },
+  profileMenuTrigger: {
+    width: 46,
+    height: 46,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 999,
+    backgroundColor: "#F4FFF8"
+  },
+  helloBlock: {
+    backgroundColor: "#E9F8EE",
+    borderWidth: 1,
+    borderColor: "#C4E8CF",
+    borderRadius: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm
+  },
+  helloText: {
+    color: "#1C5D43",
+    fontSize: typography.sizes.md,
+    fontWeight: "700"
+  },
+  profileButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#4AA271"
+  },
+  profileButtonText: {
+    color: "#1C5D43",
+    fontWeight: "700",
+    fontSize: typography.sizes.sm
   },
   card: {
     backgroundColor: colors.surface,
@@ -490,6 +637,87 @@ const styles = StyleSheet.create({
     height: 220,
     borderRadius: spacing.sm,
     backgroundColor: colors.background
+  },
+  imageModalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.95)",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  imageModalClose: {
+    position: "absolute",
+    top: 52,
+    right: 20,
+    zIndex: 2,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)"
+  },
+  imageModalContent: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  expandedImage: {
+    width: "100%",
+    height: "82%"
+  },
+  profileMenuBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.12)"
+  },
+  profileMenuCard: {
+    position: "absolute",
+    top: 86,
+    right: spacing.xl,
+    backgroundColor: colors.surface,
+    borderRadius: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    minWidth: 170,
+    overflow: "hidden"
+  },
+  profileMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm
+  },
+  profileMenuText: {
+    color: colors.text,
+    fontSize: typography.sizes.sm,
+    fontWeight: "600"
+  },
+  notificationsCard: {
+    position: "absolute",
+    top: 86,
+    right: spacing.xl + 58,
+    backgroundColor: colors.surface,
+    borderRadius: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    minWidth: 260,
+    maxWidth: 320,
+    padding: spacing.md,
+    gap: spacing.sm
+  },
+  notificationsTitle: {
+    fontSize: typography.sizes.md,
+    fontWeight: "700",
+    color: colors.text
+  },
+  notificationsMeta: {
+    fontSize: typography.sizes.xs,
+    color: colors.textSecondary
+  },
+  notificationItemText: {
+    fontSize: typography.sizes.sm,
+    color: colors.text
   },
   videoCard: {
     borderRadius: spacing.sm,

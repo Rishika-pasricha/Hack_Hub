@@ -32,7 +32,7 @@ function FeedVideo({
 }: FeedVideoProps) {
   const videoViewRef = useRef<VideoView | null>(null);
   const player = useVideoPlayer(uri, (createdPlayer) => {
-    createdPlayer.loop = false;
+    createdPlayer.loop = true;
   });
 
   useEffect(() => {

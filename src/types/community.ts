@@ -13,6 +13,13 @@ export type BlogPost = {
   authorName: string;
   authorEmail: string;
   municipalityEmail: string;
+  media?: Array<{
+    mediaType: "image" | "video";
+    mediaUrl: string;
+  }>;
+  likes?: string[];
+  likesCount?: number;
+  likedByCurrentUser?: boolean;
   sourceType: "user" | "municipality";
   status: "pending" | "approved" | "rejected";
   approvedAt?: string | null;

@@ -23,6 +23,11 @@ function isBase64ImageDataUrl(value) {
     return /^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(normalized);
 }
 
+function isBase64MediaDataUrl(value) {
+    const normalized = String(value || '').trim();
+    return /^data:(image|video)\/[a-zA-Z0-9.+-]+;base64,/.test(normalized);
+}
+
 router.post('/register', async (req, res) => {
     const { firstName, lastName, area, email, password } = req.body;
 
@@ -163,6 +168,7 @@ router.post('/login', async (req, res) => {
 
 router.get('/blogs', async (req, res) => {
     const municipalityEmail = normalizeText(req.query.municipalityEmail).toLowerCase();
+    const userEmail = normalizeText(req.query.userEmail).toLowerCase();
 
     try {
         const filter = { status: 'approved' };
@@ -170,18 +176,89 @@ router.get('/blogs', async (req, res) => {
             filter.municipalityEmail = municipalityEmail;
         }
 
-        const posts = await BlogPost.find(filter).sort({ approvedAt: -1, createdAt: -1 }).limit(200);
-        return res.status(200).json(posts);
+        const posts = await BlogPost.find(filter).sort({ approvedAt: -1, createdAt: -1 }).limit(200).lean();
+        const hydratedPosts = posts.map((post) => {
+            const likes = Array.isArray(post.likes) ? post.likes : [];
+            return {
+                ...post,
+                likesCount: likes.length,
+                likedByCurrentUser: userEmail ? likes.includes(userEmail) : false
+            };
+        });
+        return res.status(200).json(hydratedPosts);
     } catch (err) {
         return res.status(500).json({ error: 'Failed to load blogs' });
     }
 });
 
-router.post('/blogs/submit', async (req, res) => {
-    const { title, content, authorName, authorEmail, municipalityEmail } = req.body;
+router.patch('/blogs/:id/like', async (req, res) => {
+    const { id } = req.params;
+    const userEmail = normalizeText(req.body.userEmail).toLowerCase();
 
-    if (!title || !content || !authorName || !authorEmail || !municipalityEmail) {
+    if (!userEmail) {
+        return res.status(400).json({ error: 'userEmail is required' });
+    }
+
+    try {
+        const post = await BlogPost.findOne({ _id: id, status: 'approved' });
+
+        if (!post) {
+            return res.status(404).json({ error: 'Blog not found' });
+        }
+
+        const likes = Array.isArray(post.likes) ? post.likes : [];
+        const alreadyLiked = likes.includes(userEmail);
+        post.likes = alreadyLiked
+            ? likes.filter((email) => email !== userEmail)
+            : [...likes, userEmail];
+
+        await post.save();
+
+        return res.status(200).json({
+            liked: !alreadyLiked,
+            likesCount: post.likes.length,
+            message: alreadyLiked ? 'Post unliked' : 'Post liked'
+        });
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to update like status' });
+    }
+});
+
+router.post('/blogs/submit', async (req, res) => {
+    const { title, content, authorName, authorEmail, municipalityEmail, media } = req.body;
+    const normalizedContent = String(content || '').trim();
+    const normalizedMedia = Array.isArray(media) ? media : [];
+
+    if (!title || !authorName || !authorEmail || !municipalityEmail) {
         return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    if (!normalizedContent && normalizedMedia.length === 0) {
+        return res.status(400).json({ error: 'Add text content or attach media to create a post' });
+    }
+
+    if (normalizedMedia.length > 4) {
+        return res.status(400).json({ error: 'You can attach up to 4 media items per post' });
+    }
+
+    const sanitizedMedia = [];
+    for (const mediaItem of normalizedMedia) {
+        const mediaType = normalizeText(mediaItem?.mediaType).toLowerCase();
+        const mediaUrl = String(mediaItem?.mediaUrl || '').trim();
+
+        if (!['image', 'video'].includes(mediaType)) {
+            return res.status(400).json({ error: 'Unsupported media type in post attachments' });
+        }
+
+        if (!isBase64MediaDataUrl(mediaUrl)) {
+            return res.status(400).json({ error: 'Attached media must be a base64 image/video' });
+        }
+
+        if (!mediaUrl.startsWith(`data:${mediaType}/`)) {
+            return res.status(400).json({ error: 'Media type does not match attached data' });
+        }
+
+        sanitizedMedia.push({ mediaType, mediaUrl });
     }
 
     try {
@@ -194,10 +271,11 @@ router.post('/blogs/submit', async (req, res) => {
 
         const post = await BlogPost.create({
             title: String(title),
-            content: String(content),
+            content: normalizedContent,
             authorName: String(authorName),
             authorEmail: String(authorEmail).toLowerCase().trim(),
             municipalityEmail: normalizedMunicipalityEmail,
+            media: sanitizedMedia,
             sourceType: 'user',
             status: 'pending'
         });

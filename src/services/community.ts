@@ -5,11 +5,23 @@ export function getMunicipalityByArea(area: string) {
   return apiRequest<MunicipalityInfo>(`/municipality/by-area?area=${encodeURIComponent(area)}`);
 }
 
-export function getApprovedBlogs(municipalityEmail?: string) {
-  const query = municipalityEmail
-    ? `?municipalityEmail=${encodeURIComponent(municipalityEmail)}`
-    : "";
+export function getApprovedBlogs(municipalityEmail?: string, userEmail?: string) {
+  const params = new URLSearchParams();
+  if (municipalityEmail) {
+    params.set("municipalityEmail", municipalityEmail);
+  }
+  if (userEmail) {
+    params.set("userEmail", userEmail);
+  }
+  const query = params.toString() ? `?${params.toString()}` : "";
   return apiRequest<BlogPost[]>(`/blogs${query}`);
+}
+
+export function toggleBlogLike(blogId: string, userEmail: string) {
+  return apiRequest<{ liked: boolean; likesCount: number; message: string }>(`/blogs/${blogId}/like`, {
+    method: "PATCH",
+    body: { userEmail }
+  });
 }
 
 export function submitIssue(payload: {
@@ -42,6 +54,10 @@ export function submitBlog(payload: {
   authorName: string;
   authorEmail: string;
   municipalityEmail: string;
+  media?: Array<{
+    mediaType: "image" | "video";
+    mediaUrl: string;
+  }>;
 }) {
   return apiRequest<{ id: string; message: string }>("/blogs/submit", {
     method: "POST",

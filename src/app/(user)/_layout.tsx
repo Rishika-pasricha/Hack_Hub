@@ -34,7 +34,7 @@ export default function UserTabsLayout() {
       />
       <Tabs.Screen
         name="settings"
-        options={{ title: "Settings", tabBarIcon: ({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} /> }}
+        options={{ title: "Civic Hub", tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} /> }}
       />
     </Tabs>
   );

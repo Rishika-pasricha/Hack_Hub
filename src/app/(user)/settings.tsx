@@ -88,7 +88,7 @@ export default function SettingsTab() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      mediaTypes: ["images", "videos"],
       allowsMultipleSelection: false,
       quality: 0.7,
       base64: true

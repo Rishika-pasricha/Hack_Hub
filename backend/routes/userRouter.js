@@ -833,7 +833,8 @@ router.post('/products/:id/report', async (req, res) => {
             reportCount: currentReportCount
         });
     } catch (err) {
-        return res.status(500).json({ error: 'Failed to report product' });
+        console.error('Product report error:', err);
+        return res.status(500).json({ error: err?.message || 'Failed to report product' });
     }
 });
 

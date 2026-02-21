@@ -16,7 +16,7 @@ const productSchema = new mongoose.Schema(
           reason: {
             type: String,
             enum: ['spam', 'fake', 'offensive', 'scam'],
-            required: true
+            default: 'spam'
           },
           createdAt: { type: Date, default: Date.now }
         }

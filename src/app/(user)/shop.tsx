@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import {
+  Alert,
   FlatList,
   Image,
   Linking,
@@ -34,6 +35,7 @@ export default function ShopTab() {
   const [selectedReportReason, setSelectedReportReason] = useState<"spam" | "fake" | "offensive" | "scam" | null>(
     null
   );
+  const [reportStatus, setReportStatus] = useState<string | null>(null);
 
   const loadProducts = async () => {
     try {
@@ -83,29 +85,44 @@ export default function ShopTab() {
   };
 
   const handleReportProduct = async () => {
+    setReportStatus(null);
     if (!selectedProduct || !user?.email) {
-      setMessage("Please login to report products");
+      const text = "Please login to report products";
+      setMessage(text);
+      setReportStatus(text);
+      Alert.alert("Report Product", text);
       return;
     }
 
     if (selectedProduct.sellerEmail.toLowerCase() === user.email.toLowerCase()) {
-      setMessage("You cannot report your own product");
+      const text = "You cannot report your own product";
+      setMessage(text);
+      setReportStatus(text);
+      Alert.alert("Report Product", text);
       return;
     }
     if (!selectedReportReason) {
-      setMessage("Please select a report reason");
+      const text = "Please select a report reason";
+      setMessage(text);
+      setReportStatus(text);
+      Alert.alert("Report Product", text);
       return;
     }
 
     try {
       setReporting(true);
       const response = await reportProduct(selectedProduct._id, user.email.toLowerCase(), selectedReportReason);
-      setMessage(response.message || "Product reported");
-      setSelectedProduct(null);
+      const text = response.message || "Product reported";
+      setMessage(text);
+      setReportStatus(text);
+      Alert.alert("Report Product", text);
       setSelectedReportReason(null);
       await loadProducts();
     } catch (err: any) {
-      setMessage(err.message || "Failed to report product");
+      const text = err.message || "Failed to report product";
+      setMessage(text);
+      setReportStatus(text);
+      Alert.alert("Report Product", text);
     } finally {
       setReporting(false);
     }
@@ -157,6 +174,7 @@ export default function ShopTab() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>{selectedProduct?.productName}</Text>
+            {reportStatus ? <Text style={styles.reportStatus}>{reportStatus}</Text> : null}
             {selectedProduct?.description ? (
               <Text style={styles.detailText}>Description: {selectedProduct.description}</Text>
             ) : null}
@@ -187,7 +205,14 @@ export default function ShopTab() {
             </View>
             <PrimaryButton label={reporting ? "Reporting..." : "Report Product"} onPress={handleReportProduct} disabled={reporting} />
             <Text style={styles.detailText}>City: {selectedProduct?.city}</Text>
-            <PrimaryButton label="Close" onPress={() => setSelectedProduct(null)} />
+            <PrimaryButton
+              label="Close"
+              onPress={() => {
+                setSelectedProduct(null);
+                setReportStatus(null);
+                setSelectedReportReason(null);
+              }}
+            />
           </View>
         </View>
       </Modal>
@@ -316,6 +341,10 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.lg,
     fontWeight: "700",
     color: colors.text
+  },
+  reportStatus: {
+    fontSize: typography.sizes.sm,
+    color: colors.primaryDark
   },
   detailText: {
     fontSize: typography.sizes.sm,

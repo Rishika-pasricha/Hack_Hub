@@ -8,7 +8,21 @@ const productSchema = new mongoose.Schema(
     productImageUrl: { type: String, trim: true, required: true },
     sellerName: { type: String, trim: true, required: true },
     sellerEmail: { type: String, trim: true, lowercase: true, required: true },
-    city: { type: String, trim: true, required: true }
+    city: { type: String, trim: true, required: true },
+    reports: {
+      type: [
+        {
+          reporterEmail: { type: String, trim: true, lowercase: true, required: true },
+          reason: {
+            type: String,
+            enum: ['spam', 'fake', 'offensive', 'scam'],
+            required: true
+          },
+          createdAt: { type: Date, default: Date.now }
+        }
+      ],
+      default: []
+    }
   },
   { timestamps: true }
 );

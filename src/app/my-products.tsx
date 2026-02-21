@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -10,7 +10,7 @@ import {
   Text,
   View
 } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PrimaryButton } from "../components/ui/PrimaryButton";
 import { TextField } from "../components/ui/TextField";
@@ -31,7 +31,9 @@ type EditForm = {
 
 export default function MyProductsScreen() {
   const router = useRouter();
+  const { focusProductId } = useLocalSearchParams<{ focusProductId?: string }>();
   const { user, isHydrated } = useAuth();
+  const listRef = useRef<FlatList<Product> | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -73,6 +75,18 @@ export default function MyProductsScreen() {
       loadMyProducts();
     }, [user?.email])
   );
+
+  useEffect(() => {
+    if (!focusProductId || products.length === 0) {
+      return;
+    }
+    const targetIndex = products.findIndex((product) => product._id === String(focusProductId));
+    if (targetIndex >= 0) {
+      setTimeout(() => {
+        listRef.current?.scrollToIndex?.({ index: targetIndex, animated: true });
+      }, 120);
+    }
+  }, [focusProductId, products]);
 
   const startEdit = (product: Product) => {
     setEditingProduct(product);
@@ -192,6 +206,9 @@ export default function MyProductsScreen() {
         </View>
 
         <FlatList
+          ref={(ref) => {
+            listRef.current = ref;
+          }}
           data={products}
           keyExtractor={(item) => item._id}
           contentContainerStyle={styles.content}
@@ -203,12 +220,13 @@ export default function MyProductsScreen() {
             </Text>
           }
           renderItem={({ item }) => (
-            <View style={styles.card}>
+            <View style={[styles.card, String(focusProductId || "") === item._id ? styles.focusedCard : null]}>
               <Image source={{ uri: item.productImageUrl }} style={styles.cardImage} resizeMode="cover" />
               <Text style={styles.cardTitle}>{item.productName}</Text>
               {item.description ? <Text style={styles.cardDescription}>{item.description}</Text> : null}
               <Text style={styles.cardMeta}>Price: Rs. {item.price}</Text>
               <Text style={styles.cardMeta}>City: {item.city}</Text>
+              <Text style={styles.cardMeta}>Reports: {item.reportCount || 0}/5</Text>
               <View style={styles.actionsRow}>
                 <PrimaryButton label="Edit" onPress={() => startEdit(item)} />
                 <PrimaryButton label="Delete" onPress={() => handleDelete(item)} />
@@ -300,6 +318,10 @@ const styles = StyleSheet.create({
     borderRadius: spacing.sm,
     padding: spacing.md,
     gap: spacing.xs
+  },
+  focusedCard: {
+    borderColor: "#2D6A4F",
+    borderWidth: 2
   },
   cardImage: {
     width: "100%",

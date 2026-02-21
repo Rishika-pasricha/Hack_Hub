@@ -270,8 +270,32 @@ router.get('/notifications/likes', async (req, res) => {
             });
         });
 
-        notifications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        return res.status(200).json(notifications.slice(0, 100));
+        const owner = await usermodel.findOne({ email: userEmail }).select('reportNotifications').lean();
+        const reportNotifications = Array.isArray(owner?.reportNotifications)
+            ? owner.reportNotifications.map((notification, index) => ({
+                id: `report:${notification.productId}:${index}`,
+                type: notification.type || 'product_reported',
+                productId: notification.productId,
+                productName: notification.productName,
+                message: notification.message,
+                createdAt: notification.createdAt
+            }))
+            : [];
+
+        const normalizedLikeNotifications = notifications.map((item) => ({
+            id: `like:${item.id}`,
+            type: 'post_like',
+            postId: item.postId,
+            postTitle: item.postTitle,
+            message: item.message,
+            createdAt: item.createdAt
+        }));
+
+        const merged = [...normalizedLikeNotifications, ...reportNotifications]
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .slice(0, 100);
+
+        return res.status(200).json(merged);
     } catch (err) {
         return res.status(500).json({ error: 'Failed to load like notifications' });
     }
@@ -570,8 +594,13 @@ router.get('/admin/issues', async (req, res) => {
 
 router.get('/products', async (_req, res) => {
     try {
-        const products = await Product.find({}).sort({ createdAt: -1 }).limit(500);
-        return res.status(200).json(products);
+        const products = await Product.find({}).sort({ createdAt: -1 }).limit(500).lean();
+        const sanitized = products.map((product) => ({
+            ...product,
+            reportCount: Array.isArray(product.reports) ? product.reports.length : 0,
+            reports: undefined
+        }));
+        return res.status(200).json(sanitized);
     } catch (err) {
         return res.status(500).json({ error: 'Failed to load products' });
     }
@@ -585,8 +614,13 @@ router.get('/products/my', async (req, res) => {
     }
 
     try {
-        const products = await Product.find({ sellerEmail }).sort({ createdAt: -1 }).limit(500);
-        return res.status(200).json(products);
+        const products = await Product.find({ sellerEmail }).sort({ createdAt: -1 }).limit(500).lean();
+        const sanitized = products.map((product) => ({
+            ...product,
+            reportCount: Array.isArray(product.reports) ? product.reports.length : 0,
+            reports: undefined
+        }));
+        return res.status(200).json(sanitized);
     } catch (err) {
         return res.status(500).json({ error: 'Failed to load your products' });
     }
@@ -609,6 +643,14 @@ router.post('/products/submit', async (req, res) => {
     }
 
     try {
+        const seller = await usermodel.findOne({ email: String(sellerEmail).toLowerCase().trim() });
+        const now = new Date();
+        if (seller?.uploadBanUntil && new Date(seller.uploadBanUntil) > now) {
+            return res.status(403).json({
+                error: `You are temporarily banned from uploading products until ${new Date(seller.uploadBanUntil).toISOString()}`
+            });
+        }
+
         const product = await Product.create({
             productName: String(productName).trim(),
             description: String(description || '').trim(),
@@ -697,6 +739,101 @@ router.delete('/products/:id', async (req, res) => {
         return res.status(200).json({ message: 'Product deleted successfully' });
     } catch (err) {
         return res.status(500).json({ error: 'Failed to delete product' });
+    }
+});
+
+router.post('/products/:id/report', async (req, res) => {
+    const { id } = req.params;
+    const reporterEmail = normalizeText(req.body.reporterEmail).toLowerCase();
+    const reason = normalizeText(req.body.reason).toLowerCase();
+
+    if (!reporterEmail) {
+        return res.status(400).json({ error: 'reporterEmail is required' });
+    }
+    if (!['spam', 'fake', 'offensive', 'scam'].includes(reason)) {
+        return res.status(400).json({ error: 'valid report reason is required' });
+    }
+
+    try {
+        const product = await Product.findById(id);
+        if (!product) {
+            return res.status(404).json({ error: 'Product not found' });
+        }
+
+        if (String(product.sellerEmail).toLowerCase() === reporterEmail) {
+            return res.status(400).json({ error: 'You cannot report your own product' });
+        }
+
+        const existingReports = Array.isArray(product.reports) ? product.reports : [];
+        const alreadyReported = existingReports.some(
+            (reportItem) => String(reportItem.reporterEmail).toLowerCase() === reporterEmail
+        );
+        if (alreadyReported) {
+            return res.status(409).json({ error: 'You have already reported this product' });
+        }
+
+        product.reports = [...existingReports, { reporterEmail, reason, createdAt: new Date() }];
+        const currentReportCount = product.reports.length;
+
+        const sellerEmail = String(product.sellerEmail).toLowerCase();
+        const seller = await usermodel.findOne({ email: sellerEmail });
+        if (seller) {
+            const reportNotifications = Array.isArray(seller.reportNotifications) ? seller.reportNotifications : [];
+            seller.reportNotifications = [
+                {
+                    type: 'product_reported',
+                    productId: String(product._id),
+                    productName: String(product.productName),
+                    message: `Your ${product.productName} was reported`,
+                    createdAt: new Date()
+                },
+                ...reportNotifications
+            ].slice(0, 200);
+            await seller.save();
+        }
+
+        if (currentReportCount >= 5) {
+            await Product.deleteOne({ _id: product._id });
+
+            if (seller) {
+                const nextRemovedCount = Number(seller.removedProductsCount || 0) + 1;
+                seller.removedProductsCount = nextRemovedCount;
+
+                const shouldBan = nextRemovedCount % 10 === 0;
+                if (shouldBan) {
+                    const now = new Date();
+                    const banExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+                    seller.uploadBanUntil = banExpiry;
+                }
+
+                const existingNotifications = Array.isArray(seller.reportNotifications) ? seller.reportNotifications : [];
+                seller.reportNotifications = [
+                    {
+                        type: 'product_removed',
+                        productId: String(product._id),
+                        productName: String(product.productName),
+                        message: `Your ${product.productName} was removed after repeated reports`,
+                        createdAt: new Date()
+                    },
+                    ...existingNotifications
+                ].slice(0, 200);
+                await seller.save();
+            }
+
+            return res.status(200).json({
+                message: 'Product reported and removed after reaching report limit',
+                removed: true
+            });
+        }
+
+        await product.save();
+        return res.status(200).json({
+            message: 'Product reported successfully',
+            removed: false,
+            reportCount: currentReportCount
+        });
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to report product' });
     }
 });
 

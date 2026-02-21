@@ -11,17 +11,29 @@ import {
 } from "react-native";
 import { PrimaryButton } from "../../components/ui/PrimaryButton";
 import { colors, spacing, typography } from "../../constants/theme";
-import { getProducts } from "../../services/community";
+import { getProducts, reportProduct } from "../../services/community";
 import { Product } from "../../types/community";
 import { useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from "../../context/AuthContext";
 
 export default function ShopTab() {
+  const REPORT_REASONS: Array<{ value: "spam" | "fake" | "offensive" | "scam"; label: string }> = [
+    { value: "spam", label: "Spam" },
+    { value: "fake", label: "Fake Listing" },
+    { value: "offensive", label: "Offensive" },
+    { value: "scam", label: "Scam" }
+  ];
   const router = useRouter();
+  const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const [selectedReportReason, setSelectedReportReason] = useState<"spam" | "fake" | "offensive" | "scam" | null>(
+    null
+  );
 
   const loadProducts = async () => {
     try {
@@ -70,6 +82,35 @@ export default function ShopTab() {
     }
   };
 
+  const handleReportProduct = async () => {
+    if (!selectedProduct || !user?.email) {
+      setMessage("Please login to report products");
+      return;
+    }
+
+    if (selectedProduct.sellerEmail.toLowerCase() === user.email.toLowerCase()) {
+      setMessage("You cannot report your own product");
+      return;
+    }
+    if (!selectedReportReason) {
+      setMessage("Please select a report reason");
+      return;
+    }
+
+    try {
+      setReporting(true);
+      const response = await reportProduct(selectedProduct._id, user.email.toLowerCase(), selectedReportReason);
+      setMessage(response.message || "Product reported");
+      setSelectedProduct(null);
+      setSelectedReportReason(null);
+      await loadProducts();
+    } catch (err: any) {
+      setMessage(err.message || "Failed to report product");
+    } finally {
+      setReporting(false);
+    }
+  };
+
   const renderHeader = () => (
     <View style={styles.header}>
       <View style={styles.headerTopRow}>
@@ -95,7 +136,13 @@ export default function ShopTab() {
         contentContainerStyle={styles.content}
         columnWrapperStyle={styles.row}
         renderItem={({ item }) => (
-          <Pressable style={styles.productCard} onPress={() => setSelectedProduct(item)}>
+          <Pressable
+            style={styles.productCard}
+            onPress={() => {
+              setSelectedProduct(item);
+              setSelectedReportReason(null);
+            }}
+          >
             <Image source={{ uri: item.productImageUrl }} style={styles.productImage} resizeMode="cover" />
             <Text style={styles.productTitle} numberOfLines={2}>
               {item.productName}
@@ -114,7 +161,31 @@ export default function ShopTab() {
               <Text style={styles.detailText}>Description: {selectedProduct.description}</Text>
             ) : null}
             <Text style={styles.detailText}>Price: Rs. {selectedProduct?.price}</Text>
+            <Text style={styles.detailText}>Reports: {selectedProduct?.reportCount || 0}/5</Text>
             <PrimaryButton label="Enquire" onPress={handleEnquire} />
+            <Text style={styles.detailText}>Report reason:</Text>
+            <View style={styles.reasonRow}>
+              {REPORT_REASONS.map((reason) => (
+                <Pressable
+                  key={reason.value}
+                  style={[
+                    styles.reasonChip,
+                    selectedReportReason === reason.value ? styles.reasonChipSelected : null
+                  ]}
+                  onPress={() => setSelectedReportReason(reason.value)}
+                >
+                  <Text
+                    style={[
+                      styles.reasonChipText,
+                      selectedReportReason === reason.value ? styles.reasonChipTextSelected : null
+                    ]}
+                  >
+                    {reason.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <PrimaryButton label={reporting ? "Reporting..." : "Report Product"} onPress={handleReportProduct} disabled={reporting} />
             <Text style={styles.detailText}>City: {selectedProduct?.city}</Text>
             <PrimaryButton label="Close" onPress={() => setSelectedProduct(null)} />
           </View>
@@ -249,6 +320,31 @@ const styles = StyleSheet.create({
   detailText: {
     fontSize: typography.sizes.sm,
     color: colors.text
+  },
+  reasonRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs
+  },
+  reasonChip: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 999,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    backgroundColor: colors.background
+  },
+  reasonChipSelected: {
+    borderColor: "#2D6A4F",
+    backgroundColor: "#E9F8EE"
+  },
+  reasonChipText: {
+    fontSize: typography.sizes.xs,
+    color: colors.textSecondary,
+    fontWeight: "600"
+  },
+  reasonChipTextSelected: {
+    color: "#1C5D43"
   },
   drawerOverlay: {
     flex: 1,

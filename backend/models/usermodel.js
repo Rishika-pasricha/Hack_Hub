@@ -8,6 +8,20 @@ const userSchema= new mongoose.Schema({
     passwordHash: { type: String, required: true },
     otp: String,
     otpExpiry: Date,
+    removedProductsCount: { type: Number, default: 0 },
+    uploadBanUntil: { type: Date, default: null },
+    reportNotifications: {
+        type: [
+            {
+                type: { type: String, enum: ['product_reported', 'product_removed'], default: 'product_reported' },
+                productId: { type: String, required: true },
+                productName: { type: String, required: true },
+                message: { type: String, required: true },
+                createdAt: { type: Date, default: Date.now }
+            }
+        ],
+        default: []
+    },
     createdAt: { type: Date, default: Date.now }
 })
 

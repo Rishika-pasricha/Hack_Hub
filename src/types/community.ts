@@ -46,5 +46,6 @@ export type Product = {
   sellerName: string;
   sellerEmail: string;
   city: string;
+  reportCount?: number;
   createdAt: string;
 };

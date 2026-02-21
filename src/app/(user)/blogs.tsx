@@ -105,7 +105,16 @@ export default function BlogsTab() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<
-    Array<{ id: string; message: string; createdAt: string; postTitle: string; likerName: string }>
+    Array<{
+      id: string;
+      type: "post_like" | "product_reported" | "product_removed";
+      message: string;
+      createdAt: string;
+      postId?: string;
+      postTitle?: string;
+      productId?: string;
+      productName?: string;
+    }>
   >([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const scrollYRef = useRef(0);
@@ -443,9 +452,20 @@ export default function BlogsTab() {
             ) : null}
             {!notificationsLoading
               ? notifications.map((item) => (
-                  <Text key={item.id} style={styles.notificationItemText}>
-                    {item.likerName} liked your post {item.postTitle}
-                  </Text>
+                  <Pressable
+                    key={item.id}
+                    onPress={() => {
+                      if (item.productId) {
+                        setNotificationsOpen(false);
+                        router.push({
+                          pathname: "/my-products",
+                          params: { focusProductId: item.productId }
+                        });
+                      }
+                    }}
+                  >
+                    <Text style={styles.notificationItemText}>{item.message}</Text>
+                  </Pressable>
                 ))
               : null}
           </View>

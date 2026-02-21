@@ -94,14 +94,26 @@ export function getLikeNotifications(userEmail: string) {
   return apiRequest<
     Array<{
       id: string;
-      likerEmail: string;
-      likerName: string;
-      postId: string;
-      postTitle: string;
+      type: "post_like" | "product_reported" | "product_removed";
+      postId?: string;
+      postTitle?: string;
+      productId?: string;
+      productName?: string;
       message: string;
       createdAt: string;
     }>
   >(`/notifications/likes?userEmail=${encodeURIComponent(userEmail)}`);
+}
+
+export function reportProduct(
+  productId: string,
+  reporterEmail: string,
+  reason: "spam" | "fake" | "offensive" | "scam"
+) {
+  return apiRequest<{ message: string; removed?: boolean; reportCount?: number }>(`/products/${productId}/report`, {
+    method: "POST",
+    body: { reporterEmail, reason }
+  });
 }
 
 export function getPendingBlogsForAdmin(municipalityEmail: string) {

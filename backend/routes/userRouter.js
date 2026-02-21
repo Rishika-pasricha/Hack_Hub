@@ -214,6 +214,7 @@ router.get('/notifications/likes', async (req, res) => {
     }
 
     try {
+        const retentionCutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000);
         const posts = await BlogPost.find({ authorEmail: userEmail })
             .select('_id title likes createdAt updatedAt')
             .sort({ updatedAt: -1, createdAt: -1 })
@@ -271,16 +272,26 @@ router.get('/notifications/likes', async (req, res) => {
         });
 
         const owner = await usermodel.findOne({ email: userEmail }).select('reportNotifications').lean();
-        const reportNotifications = Array.isArray(owner?.reportNotifications)
-            ? owner.reportNotifications.map((notification, index) => ({
+        const rawReportNotifications = Array.isArray(owner?.reportNotifications) ? owner.reportNotifications : [];
+        const freshReportNotifications = rawReportNotifications.filter(
+            (notification) => notification?.createdAt && new Date(notification.createdAt) >= retentionCutoff
+        );
+
+        if (freshReportNotifications.length !== rawReportNotifications.length) {
+            await usermodel.updateOne(
+                { email: userEmail },
+                { reportNotifications: freshReportNotifications }
+            );
+        }
+
+        const reportNotifications = freshReportNotifications.map((notification, index) => ({
                 id: `report:${notification.productId}:${index}`,
                 type: notification.type || 'product_reported',
                 productId: notification.productId,
                 productName: notification.productName,
                 message: notification.message,
                 createdAt: notification.createdAt
-            }))
-            : [];
+            }));
 
         const normalizedLikeNotifications = notifications.map((item) => ({
             id: `like:${item.id}`,
@@ -292,6 +303,7 @@ router.get('/notifications/likes', async (req, res) => {
         }));
 
         const merged = [...normalizedLikeNotifications, ...reportNotifications]
+            .filter((item) => item?.createdAt && new Date(item.createdAt) >= retentionCutoff)
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
             .slice(0, 100);
 
@@ -789,7 +801,7 @@ router.post('/products/:id/report', async (req, res) => {
                 },
                 ...reportNotifications
             ].slice(0, 200);
-            await seller.save();
+            await seller.save({ validateBeforeSave: false });
         }
 
         if (currentReportCount >= 5) {
@@ -817,7 +829,7 @@ router.post('/products/:id/report', async (req, res) => {
                     },
                     ...existingNotifications
                 ].slice(0, 200);
-                await seller.save();
+                await seller.save({ validateBeforeSave: false });
             }
 
             return res.status(200).json({

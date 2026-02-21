@@ -215,6 +215,35 @@ router.patch('/profile', async (req, res) => {
     }
 });
 
+router.delete('/account', async (req, res) => {
+    const userEmail = normalizeText(req.body.userEmail).toLowerCase();
+
+    if (!userEmail) {
+        return res.status(400).json({ error: 'userEmail is required' });
+    }
+
+    try {
+        const user = await usermodel.findOne({ email: userEmail });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        await Promise.all([
+            BlogPost.deleteMany({ authorEmail: userEmail }),
+            Product.deleteMany({ sellerEmail: userEmail }),
+            Issue.deleteMany({ userEmail }),
+            BlogPost.updateMany({ likes: userEmail }, { $pull: { likes: userEmail } }),
+            Product.updateMany({ 'reports.reporterEmail': userEmail }, { $pull: { reports: { reporterEmail: userEmail } } })
+        ]);
+
+        await usermodel.deleteOne({ email: userEmail });
+
+        return res.status(200).json({ message: 'Account and related data deleted successfully' });
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to delete account' });
+    }
+});
+
 router.get('/blogs', async (req, res) => {
     const municipalityEmail = normalizeText(req.query.municipalityEmail).toLowerCase();
     const userEmail = normalizeText(req.query.userEmail).toLowerCase();
@@ -226,12 +255,28 @@ router.get('/blogs', async (req, res) => {
         }
 
         const posts = await BlogPost.find(filter).sort({ approvedAt: -1, createdAt: -1 }).limit(200).lean();
+        const authorEmails = Array.from(
+            new Set(
+                posts
+                    .map((post) => String(post.authorEmail || '').toLowerCase())
+                    .filter(Boolean)
+            )
+        );
+        const authorUsers = authorEmails.length
+            ? await usermodel.find({ email: { $in: authorEmails } }).select('email profileImageUrl').lean()
+            : [];
+        const profileImageByEmail = new Map(
+            authorUsers.map((author) => [String(author.email || '').toLowerCase(), String(author.profileImageUrl || '')])
+        );
+
         const hydratedPosts = posts.map((post) => {
             const likes = Array.isArray(post.likes) ? post.likes : [];
+            const normalizedAuthorEmail = String(post.authorEmail || '').toLowerCase();
             return {
                 ...post,
                 likesCount: likes.length,
-                likedByCurrentUser: userEmail ? likes.includes(userEmail) : false
+                likedByCurrentUser: userEmail ? likes.includes(userEmail) : false,
+                authorProfileImageUrl: profileImageByEmail.get(normalizedAuthorEmail) || ''
             };
         });
         return res.status(200).json(hydratedPosts);

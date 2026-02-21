@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
@@ -7,7 +7,7 @@ import { PrimaryButton } from "../components/ui/PrimaryButton";
 import { TextField } from "../components/ui/TextField";
 import { colors, spacing, typography } from "../constants/theme";
 import { useAuth } from "../context/AuthContext";
-import { updateProfile } from "../services/auth";
+import { deleteAccount, updateProfile } from "../services/auth";
 
 export default function ProfileSettingsScreen() {
   const router = useRouter();
@@ -106,6 +106,33 @@ export default function ProfileSettingsScreen() {
     }
   };
 
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete Account",
+      "This will permanently delete your account, posts, products and related data. Continue?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setSaving(true);
+              setMessage(null);
+              await deleteAccount(user.email.toLowerCase());
+              logout();
+              router.replace("/login");
+            } catch (err: any) {
+              setMessage(err.message || "Failed to delete account");
+            } finally {
+              setSaving(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -168,6 +195,7 @@ export default function ProfileSettingsScreen() {
               router.replace("/login");
             }}
           />
+          <PrimaryButton label={saving ? "Deleting..." : "Delete Account"} onPress={handleDeleteAccount} disabled={saving} />
         </View>
       </ScrollView>
     </SafeAreaView>

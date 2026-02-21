@@ -12,6 +12,7 @@ export type BlogPost = {
   content: string;
   authorName: string;
   authorEmail: string;
+  authorProfileImageUrl?: string;
   municipalityEmail: string;
   media?: Array<{
     mediaType: "image" | "video";

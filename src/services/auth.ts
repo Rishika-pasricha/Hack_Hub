@@ -48,3 +48,10 @@ export function updateProfile(payload: {
     body: payload
   });
 }
+
+export function deleteAccount(userEmail: string) {
+  return apiRequest<{ message: string }>("/account", {
+    method: "DELETE",
+    body: { userEmail }
+  });
+}

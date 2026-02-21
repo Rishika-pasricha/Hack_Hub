@@ -396,7 +396,11 @@ export default function BlogsTab() {
           <View key={blog._id} style={styles.card}>
             <View style={styles.postHeader}>
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{getInitials(blog.authorName)}</Text>
+                {blog.authorProfileImageUrl ? (
+                  <Image source={{ uri: blog.authorProfileImageUrl }} style={styles.avatarImage} resizeMode="cover" />
+                ) : (
+                  <Text style={styles.avatarText}>{getInitials(blog.authorName)}</Text>
+                )}
               </View>
               <View style={styles.postHeaderText}>
                 <Text style={styles.authorName}>{blog.authorName}</Text>
@@ -639,6 +643,11 @@ const styles = StyleSheet.create({
     color: "#1C5D43",
     fontWeight: "700",
     fontSize: typography.sizes.sm
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 19
   },
   postHeaderText: {
     flex: 1

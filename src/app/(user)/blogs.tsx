@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -14,9 +14,22 @@ type FeedVideoProps = {
   muteVideos: boolean;
   activeVideoKey: string | null;
   onVideoPlay: (videoKey: string) => void;
+  onManualPause: (videoKey: string) => void;
+  onManualPlay: (videoKey: string) => void;
+  onLayoutMeasured: (videoKey: string, y: number, height: number) => void;
 };
 
-function FeedVideo({ videoKey, uri, muteVideos, activeVideoKey, onVideoPlay }: FeedVideoProps) {
+function FeedVideo({
+  videoKey,
+  uri,
+  muteVideos,
+  activeVideoKey,
+  onVideoPlay,
+  onManualPause,
+  onManualPlay,
+  onLayoutMeasured
+}: FeedVideoProps) {
+  const videoViewRef = useRef<VideoView | null>(null);
   const player = useVideoPlayer(uri, (createdPlayer) => {
     createdPlayer.loop = false;
   });
@@ -26,7 +39,11 @@ function FeedVideo({ videoKey, uri, muteVideos, activeVideoKey, onVideoPlay }: F
   }, [muteVideos, player]);
 
   useEffect(() => {
-    if (activeVideoKey && activeVideoKey !== videoKey && player.playing) {
+    if (activeVideoKey === videoKey && !player.playing) {
+      player.play();
+      return;
+    }
+    if (activeVideoKey !== videoKey && player.playing) {
       player.pause();
     }
   }, [activeVideoKey, player, videoKey]);
@@ -42,9 +59,34 @@ function FeedVideo({ videoKey, uri, muteVideos, activeVideoKey, onVideoPlay }: F
     };
   }, [onVideoPlay, player, videoKey]);
 
+  const handleTogglePlayback = () => {
+    if (player.playing) {
+      player.pause();
+      onManualPause(videoKey);
+      return;
+    }
+    player.play();
+    onManualPlay(videoKey);
+  };
+
+  const handleEnterFullscreen = async () => {
+    try {
+      await videoViewRef.current?.enterFullscreen();
+    } catch {
+      // Ignore fullscreen failures on unsupported environments.
+    }
+  };
+
   return (
-    <View style={styles.videoCard}>
-      <VideoView player={player} style={styles.videoPlayer} nativeControls contentFit="cover" />
+    <View
+      style={styles.videoCard}
+      onLayout={(event) => onLayoutMeasured(videoKey, event.nativeEvent.layout.y, event.nativeEvent.layout.height)}
+    >
+      <VideoView ref={videoViewRef} player={player} style={styles.videoPlayer} nativeControls={false} contentFit="cover" />
+      <Pressable style={styles.videoTouchOverlay} onPress={handleTogglePlayback} />
+      <Pressable style={styles.videoFullscreenButton} onPress={handleEnterFullscreen}>
+        <Ionicons name="expand-outline" size={18} color="#FFFFFF" />
+      </Pressable>
     </View>
   );
 }
@@ -57,6 +99,10 @@ export default function BlogsTab() {
   const [likingPostId, setLikingPostId] = useState<string | null>(null);
   const [muteVideos, setMuteVideos] = useState(true);
   const [activeVideoKey, setActiveVideoKey] = useState<string | null>(null);
+  const scrollYRef = useRef(0);
+  const viewportHeightRef = useRef(0);
+  const videoLayoutRef = useRef<Record<string, { y: number; height: number }>>({});
+  const manuallyPausedVideoKeyRef = useRef<string | null>(null);
 
   const greetingName = useMemo(() => {
     if (!user) {
@@ -125,7 +171,60 @@ export default function BlogsTab() {
     }
   }, [blogs]);
 
+  const updateAutoplayByViewport = useCallback(() => {
+    const viewportHeight = viewportHeightRef.current;
+    if (!viewportHeight) {
+      return;
+    }
+
+    const viewportTop = scrollYRef.current;
+    const viewportBottom = viewportTop + viewportHeight;
+    let nextKey: string | null = null;
+    let bestRatio = 0;
+
+    for (const [videoKey, layout] of Object.entries(videoLayoutRef.current)) {
+      const top = layout.y;
+      const bottom = layout.y + layout.height;
+      const overlap = Math.max(0, Math.min(viewportBottom, bottom) - Math.max(viewportTop, top));
+      const ratio = overlap / Math.max(1, layout.height);
+      if (ratio > bestRatio) {
+        bestRatio = ratio;
+        nextKey = videoKey;
+      }
+    }
+
+    const threshold = 0.45;
+    let targetKey = bestRatio >= threshold ? nextKey : null;
+    if (targetKey && targetKey === manuallyPausedVideoKeyRef.current) {
+      targetKey = null;
+    }
+
+    if (targetKey && targetKey !== manuallyPausedVideoKeyRef.current) {
+      manuallyPausedVideoKeyRef.current = null;
+    }
+
+    setActiveVideoKey((previous) => (previous === targetKey ? previous : targetKey));
+  }, []);
+
+  const handleVideoLayoutMeasured = useCallback(
+    (videoKey: string, y: number, height: number) => {
+      videoLayoutRef.current[videoKey] = { y, height };
+      updateAutoplayByViewport();
+    },
+    [updateAutoplayByViewport]
+  );
+
   const handleVideoPlay = useCallback((videoKey: string) => {
+    setActiveVideoKey(videoKey);
+  }, []);
+
+  const handleManualPause = useCallback((videoKey: string) => {
+    manuallyPausedVideoKeyRef.current = videoKey;
+    setActiveVideoKey((previous) => (previous === videoKey ? null : previous));
+  }, []);
+
+  const handleManualPlay = useCallback((videoKey: string) => {
+    manuallyPausedVideoKeyRef.current = null;
     setActiveVideoKey(videoKey);
   }, []);
 
@@ -192,6 +291,15 @@ export default function BlogsTab() {
         style={styles.container}
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={loadBlogs} />}
+        scrollEventThrottle={16}
+        onLayout={(event) => {
+          viewportHeightRef.current = event.nativeEvent.layout.height;
+          updateAutoplayByViewport();
+        }}
+        onScroll={(event) => {
+          scrollYRef.current = event.nativeEvent.contentOffset.y;
+          updateAutoplayByViewport();
+        }}
       >
         <View style={styles.heroCard}>
           <Text style={styles.heroTop}>Hello, {greetingName}</Text>
@@ -251,6 +359,9 @@ export default function BlogsTab() {
                   muteVideos={muteVideos}
                   activeVideoKey={activeVideoKey}
                   onVideoPlay={handleVideoPlay}
+                  onManualPause={handleManualPause}
+                  onManualPlay={handleManualPlay}
+                  onLayoutMeasured={handleVideoLayoutMeasured}
                 />
               )
             )}
@@ -389,6 +500,20 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 240,
     backgroundColor: "#000000"
+  },
+  videoTouchOverlay: {
+    ...StyleSheet.absoluteFillObject
+  },
+  videoFullscreenButton: {
+    position: "absolute",
+    right: 10,
+    bottom: 10,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)"
   },
   footerRow: {
     flexDirection: "row",

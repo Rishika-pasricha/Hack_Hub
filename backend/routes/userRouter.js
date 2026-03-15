@@ -1177,7 +1177,7 @@ router.patch('/notifications/issue-completion/:issueId/read', async (req, res) =
 
         // Find and mark the notification as read
         const notification = user.issueCompletionNotifications.find(
-            (notif: any) => String(notif.issueId) === String(issueId)
+            (notif) => String(notif.issueId) === String(issueId)
         );
 
         if (!notification) {

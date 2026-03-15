@@ -30,6 +30,10 @@ export function submitIssue(payload: {
   userName: string;
   userEmail: string;
   municipalityEmail: string;
+  media?: Array<{
+    mediaType: "image" | "video";
+    mediaUrl: string;
+  }>;
 }) {
   return apiRequest<{ id: string; message: string }>("/issues/submit", {
     method: "POST",

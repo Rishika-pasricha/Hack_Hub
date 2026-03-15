@@ -7,7 +7,11 @@ const issueSchema = new mongoose.Schema(
     userName: { type: String, trim: true, required: true },
     userEmail: { type: String, trim: true, lowercase: true, required: true },
     municipalityEmail: { type: String, trim: true, lowercase: true, required: true },
-    status: { type: String, enum: ['open', 'resolved'], default: 'open' }
+    status: { type: String, enum: ['open', 'resolved'], default: 'open' },
+    media: [{
+      mediaType: { type: String, enum: ['image', 'video'], required: true },
+      mediaUrl: { type: String, required: true }
+    }]
   },
   { timestamps: true }
 );

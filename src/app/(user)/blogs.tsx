@@ -382,6 +382,9 @@ export default function BlogsTab() {
       >
         <View style={styles.helloBlock}>
           <Text style={styles.helloText}>Hello, {greetingName}</Text>
+          <Pressable style={styles.muteButton} onPress={() => setMuteVideos(!muteVideos)}>
+            <Ionicons name={muteVideos ? "volume-mute-outline" : "volume-high-outline"} size={20} color={colors.text} />
+          </Pressable>
         </View>
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -560,6 +563,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.surface
   },
+  muteButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface
+  },
   notificationBadge: {
     position: "absolute",
     top: -2,
@@ -586,6 +599,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#F4FFF8"
   },
   helloBlock: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     backgroundColor: "#E9F8EE",
     borderWidth: 1,
     borderColor: "#C4E8CF",

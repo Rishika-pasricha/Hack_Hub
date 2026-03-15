@@ -568,10 +568,25 @@ router.post('/blogs/submit', async (req, res) => {
 });
 
 router.post('/issues/submit', async (req, res) => {
-    const { subject, description, userName, userEmail, municipalityEmail } = req.body;
+    const { subject, description, userName, userEmail, municipalityEmail, media } = req.body;
 
     if (!subject || !description || !userName || !userEmail || !municipalityEmail) {
         return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Validate media if provided
+    if (media && Array.isArray(media)) {
+        for (const item of media) {
+            if (!item.mediaType || !item.mediaUrl) {
+                return res.status(400).json({ error: 'Invalid media format' });
+            }
+            if (!['image', 'video'].includes(item.mediaType)) {
+                return res.status(400).json({ error: 'Media type must be image or video' });
+            }
+            if (!String(item.mediaUrl).startsWith('data:')) {
+                return res.status(400).json({ error: 'Please upload media from gallery' });
+            }
+        }
     }
 
     try {
@@ -587,7 +602,11 @@ router.post('/issues/submit', async (req, res) => {
             description: String(description),
             userName: String(userName),
             userEmail: String(userEmail).toLowerCase().trim(),
-            municipalityEmail: normalizedMunicipalityEmail
+            municipalityEmail: normalizedMunicipalityEmail,
+            media: media && Array.isArray(media) ? media.map(item => ({
+                mediaType: item.mediaType,
+                mediaUrl: String(item.mediaUrl)
+            })) : []
         });
 
         return res.status(201).json({

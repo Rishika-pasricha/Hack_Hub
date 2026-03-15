@@ -36,6 +36,10 @@ export type Issue = {
   municipalityEmail: string;
   status: "open" | "resolved";
   createdAt: string;
+  media?: Array<{
+    mediaType: "image" | "video";
+    mediaUrl: string;
+  }>;
 };
 
 export type MunicipalityLeaderboardEntry = {

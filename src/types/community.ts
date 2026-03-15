@@ -38,6 +38,16 @@ export type Issue = {
   createdAt: string;
 };
 
+export type MunicipalityLeaderboardEntry = {
+  municipalityName: string;
+  district: string;
+  contactEmail: string;
+  totalIssues: number;
+  resolvedIssues: number;
+  openIssues: number;
+  resolutionRate: string;
+};
+
 export type Product = {
   _id: string;
   productName: string;

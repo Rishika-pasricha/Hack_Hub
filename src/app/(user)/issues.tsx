@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PrimaryButton } from "../../components/ui/PrimaryButton";
+import { MunicipalityLeaderboardModal } from "../../components/ui/MunicipalityLeaderboardModal";
 import { colors, spacing, typography } from "../../constants/theme";
 import { getMyIssues, resolveMyIssue } from "../../services/community";
 import { Issue } from "../../types/community";
@@ -14,6 +15,7 @@ export default function IssuesTab() {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   const loadIssues = async () => {
     if (!user?.email) {
@@ -61,6 +63,7 @@ export default function IssuesTab() {
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <Text style={styles.title}>My Civic Issues</Text>
         <PrimaryButton label="Submit Civic Issue" onPress={() => router.push("/submit-issue")} />
+        <PrimaryButton label="View Leaderboard" onPress={() => setShowLeaderboard(true)} />
         <PrimaryButton label={working ? "Refreshing..." : "Refresh"} onPress={loadIssues} disabled={working} />
         {message ? <Text style={styles.info}>{message}</Text> : null}
         {issues.length === 0 ? <Text style={styles.hint}>No issues submitted yet.</Text> : null}
@@ -76,6 +79,7 @@ export default function IssuesTab() {
           </View>
         ))}
       </ScrollView>
+      <MunicipalityLeaderboardModal visible={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
     </SafeAreaView>
   );
 }

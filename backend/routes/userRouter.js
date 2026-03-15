@@ -698,6 +698,44 @@ router.get('/admin/issues', async (req, res) => {
     }
 });
 
+router.get('/issues/leaderboard', async (req, res) => {
+    try {
+        const municipalities = await Municipality.find({}).lean();
+        
+        const leaderboardData = await Promise.all(
+            municipalities.map(async (mun) => {
+                const totalIssues = await Issue.countDocuments({ municipalityEmail: mun.contactEmail });
+                const resolvedIssues = await Issue.countDocuments({ 
+                    municipalityEmail: mun.contactEmail, 
+                    status: 'resolved' 
+                });
+                
+                return {
+                    municipalityName: mun.municipalityName,
+                    district: mun.district,
+                    contactEmail: mun.contactEmail,
+                    totalIssues,
+                    resolvedIssues,
+                    openIssues: totalIssues - resolvedIssues,
+                    resolutionRate: totalIssues > 0 ? ((resolvedIssues / totalIssues) * 100).toFixed(1) : 0
+                };
+            })
+        );
+
+        // Sort by resolved issues (descending), then by total issues (descending)
+        const sorted = leaderboardData.sort((a, b) => {
+            if (b.resolvedIssues !== a.resolvedIssues) {
+                return b.resolvedIssues - a.resolvedIssues;
+            }
+            return b.totalIssues - a.totalIssues;
+        });
+
+        return res.status(200).json(sorted);
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to load leaderboard' });
+    }
+});
+
 router.get('/products', async (_req, res) => {
     try {
         const products = await Product.find({}).sort({ createdAt: -1 }).limit(500).lean();

@@ -1,5 +1,5 @@
 import { apiRequest } from "./api";
-import { BlogPost, Issue, MunicipalityInfo, Product } from "../types/community";
+import { BlogPost, Issue, MunicipalityInfo, Product, MunicipalityLeaderboardEntry } from "../types/community";
 
 export function getMunicipalityByArea(area: string) {
   return apiRequest<MunicipalityInfo>(`/municipality/by-area?area=${encodeURIComponent(area)}`);
@@ -178,4 +178,8 @@ export function deleteProduct(productId: string, sellerEmail: string) {
     method: "DELETE",
     body: { sellerEmail }
   });
+}
+
+export function getMunicipalityLeaderboard() {
+  return apiRequest<MunicipalityLeaderboardEntry[]>("/issues/leaderboard");
 }

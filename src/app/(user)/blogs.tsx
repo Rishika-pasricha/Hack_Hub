@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { colors, spacing, typography } from "../../constants/theme";
-import { getApprovedBlogs, getLikeNotifications, toggleBlogLike } from "../../services/community";
+import { getApprovedBlogs, getLikeNotifications, getIssueCompletionNotifications, toggleBlogLike } from "../../services/community";
 import { BlogPost } from "../../types/community";
 import { useAuth } from "../../context/AuthContext";
 
@@ -107,13 +107,15 @@ export default function BlogsTab() {
   const [notifications, setNotifications] = useState<
     Array<{
       id: string;
-      type: "post_like" | "product_reported" | "product_removed";
+      type: "post_like" | "product_reported" | "product_removed" | "issue_completion";
       message: string;
       createdAt: string;
       postId?: string;
       postTitle?: string;
       productId?: string;
       productName?: string;
+      issueId?: string;
+      issueSubject?: string;
     }>
   >([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
@@ -193,8 +195,24 @@ export default function BlogsTab() {
     }
     try {
       setNotificationsLoading(true);
-      const data = await getLikeNotifications(user.email.toLowerCase());
-      setNotifications(data);
+      const [likeNotifications, issueNotifications] = await Promise.all([
+        getLikeNotifications(user.email.toLowerCase()),
+        getIssueCompletionNotifications(user.email.toLowerCase())
+      ]);
+      
+      const combinedNotifications = [
+        ...likeNotifications,
+        ...issueNotifications.map((issue: any) => ({
+          id: `issue-${issue.issueId}`,
+          type: "issue_completion" as const,
+          message: issue.message,
+          createdAt: issue.createdAt,
+          issueId: issue.issueId,
+          issueSubject: issue.issueSubject
+        }))
+      ];
+      
+      setNotifications(combinedNotifications);
     } catch {
       setNotifications([]);
     } finally {
@@ -472,10 +490,16 @@ export default function BlogsTab() {
                           pathname: "/my-products",
                           params: { focusProductId: item.productId }
                         });
+                      } else if (item.type === "issue_completion") {
+                        setNotificationsOpen(false);
+                        router.push("/issues");
                       }
                     }}
                   >
                     <Text style={styles.notificationItemText}>{item.message}</Text>
+                    {item.type === "issue_completion" && item.issueSubject ? (
+                      <Text style={styles.notificationItemSubtext}>Issue: {item.issueSubject}</Text>
+                    ) : null}
                   </Pressable>
                 ))
               : null}
@@ -772,6 +796,11 @@ const styles = StyleSheet.create({
   notificationItemText: {
     fontSize: typography.sizes.sm,
     color: colors.text
+  },
+  notificationItemSubtext: {
+    fontSize: typography.sizes.xs,
+    color: colors.textSecondary,
+    marginTop: spacing.xs
   },
   videoCard: {
     borderRadius: spacing.sm,

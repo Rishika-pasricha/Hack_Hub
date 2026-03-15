@@ -12,6 +12,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import { PrimaryButton } from "../../components/ui/PrimaryButton";
+import { MunicipalityLeaderboardModal } from "../../components/ui/MunicipalityLeaderboardModal";
 import { TextField } from "../../components/ui/TextField";
 import { colors, spacing, typography } from "../../constants/theme";
 import { getMunicipalityByArea, submitBlog } from "../../services/community";
@@ -32,6 +33,7 @@ export default function SettingsTab() {
   const [working, setWorking] = useState(false);
   const [blogMessage, setBlogMessage] = useState<string | null>(null);
   const [mediaItems, setMediaItems] = useState<BlogMedia[]>([]);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   const [blogForm, setBlogForm] = useState({
     title: "",
@@ -195,6 +197,8 @@ export default function SettingsTab() {
           <Text style={styles.cardTitle}>Civic Issues</Text>
           <Text style={styles.hint}>View your previous issues, submit new ones, and mark resolved issues.</Text>
           <PrimaryButton label="Go To My Issues" onPress={() => router.push("/issues")} />
+          <View style={{ marginTop: spacing.md }} />
+          <PrimaryButton label="View Municipality Leaderboard" onPress={() => setShowLeaderboard(true)} />
         </View>
 
         <View style={styles.card}>
@@ -246,6 +250,7 @@ export default function SettingsTab() {
         </View>
 
       </ScrollView>
+      <MunicipalityLeaderboardModal visible={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
     </SafeAreaView>
   );
 }

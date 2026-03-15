@@ -137,6 +137,13 @@ export function getIssuesForAdmin(municipalityEmail: string) {
   return apiRequest<Issue[]>(`/admin/issues?municipalityEmail=${encodeURIComponent(municipalityEmail)}`);
 }
 
+export function notifyIssueCompletion(issueId: string, municipalityEmail: string, adminName: string) {
+  return apiRequest<{ message: string; emailSent: boolean }>(`/admin/issues/${issueId}/request-completion`, {
+    method: "POST",
+    body: { municipalityEmail, adminName }
+  });
+}
+
 export function getProducts() {
   return apiRequest<Product[]>("/products");
 }

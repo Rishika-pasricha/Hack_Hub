@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { StyleSheet, Text, View, ScrollView } from "react-native";
+import { StyleSheet, Text, View, ScrollView, Image, Linking, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PrimaryButton } from "../components/ui/PrimaryButton";
 import { colors, spacing, typography } from "../constants/theme";
-import { approveBlogForAdmin, getIssuesForAdmin, getPendingBlogsForAdmin } from "../services/community";
+import { approveBlogForAdmin, getIssuesForAdmin, getPendingBlogsForAdmin, notifyIssueCompletion } from "../services/community";
 import { BlogPost, Issue } from "../types/community";
 import { useAuth } from "../context/AuthContext";
 
@@ -16,6 +16,7 @@ export default function AdminDashboard() {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [processingIssueId, setProcessingIssueId] = useState<string | null>(null);
 
   const handleLogout = () => {
     logout();
@@ -52,6 +53,19 @@ export default function AdminDashboard() {
       await loadData();
     } catch (err: any) {
       setMessage(err.message || "Failed to approve blog");
+    }
+  };
+
+  const handleIssueCompletion = async (issueId: string, adminName: string) => {
+    try {
+      setMessage(null);
+      setProcessingIssueId(issueId);
+      await notifyIssueCompletion(issueId, municipalityEmail.trim().toLowerCase(), adminName);
+      setMessage("Completion notification sent to issue reporter");
+    } catch (err: any) {
+      setMessage(err.message || "Failed to send completion notification");
+    } finally {
+      setProcessingIssueId(null);
     }
   };
 
@@ -113,6 +127,40 @@ export default function AdminDashboard() {
                 {issue.userName} ({issue.userEmail})
               </Text>
               <Text style={styles.itemBody}>{issue.description}</Text>
+              
+              {issue.media && issue.media.length > 0 && (
+                <View style={styles.mediaContainer}>
+                  <Text style={styles.mediaLabel}>Attachments ({issue.media.length})</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mediaScroll}>
+                    {issue.media.map((media, idx) => (
+                      <View key={idx} style={styles.mediaItem}>
+                        {media.mediaType === 'image' ? (
+                          <Image 
+                            source={{ uri: media.mediaUrl }} 
+                            style={styles.mediaImage}
+                          />
+                        ) : (
+                          <TouchableOpacity 
+                            style={styles.videoPlaceholder}
+                            onPress={() => Linking.openURL(media.mediaUrl)}
+                          >
+                            <Text style={styles.videoIcon}>▶</Text>
+                            <Text style={styles.videoText}>Video</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+              
+              {issue.status === 'open' && (
+                <PrimaryButton 
+                  label={processingIssueId === issue._id ? "Sending..." : "✓ Completed"} 
+                  onPress={() => handleIssueCompletion(issue._id, user?.firstName || "Admin")}
+                  disabled={processingIssueId === issue._id}
+                />
+              )}
             </View>
           ))}
         </View>
@@ -190,6 +238,50 @@ const styles = StyleSheet.create({
   itemBody: {
     fontSize: typography.sizes.sm,
     color: colors.text
+  },
+  mediaContainer: {
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border
+  },
+  mediaLabel: {
+    fontSize: typography.sizes.sm,
+    fontWeight: "600",
+    color: colors.textSecondary,
+    marginBottom: spacing.sm
+  },
+  mediaScroll: {
+    marginHorizontal: -spacing.md
+  },
+  mediaItem: {
+    marginHorizontal: spacing.sm,
+    marginBottom: spacing.sm
+  },
+  mediaImage: {
+    width: 120,
+    height: 120,
+    borderRadius: spacing.sm,
+    backgroundColor: colors.border
+  },
+  videoPlaceholder: {
+    width: 120,
+    height: 120,
+    borderRadius: spacing.sm,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: spacing.xs
+  },
+  videoIcon: {
+    fontSize: 32,
+    color: colors.surface,
+    fontWeight: "bold"
+  },
+  videoText: {
+    fontSize: typography.sizes.xs,
+    color: colors.surface,
+    fontWeight: "600"
   },
   footer: {
     padding: spacing.xl

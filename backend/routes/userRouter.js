@@ -7,7 +7,7 @@ const Product = require('../models/productModel');
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
-const { generateOTP, sendOTPEmail } = require('../utils/emailService');
+const { generateOTP, sendOTPEmail, sendIssueCompletionEmail } = require('../utils/emailService');
 const { isMunicipalityEmail } = require('../utils/municipalityEmails');
 
 function normalizeText(input) {
@@ -1136,6 +1136,69 @@ router.post('/reset-password', async (req, res) => {
     } catch (err) {
         console.error('Password reset error:', err);
         return res.status(500).json({ error: 'Failed to reset password' });
+    }
+});
+
+router.post('/admin/issues/:issueId/request-completion', async (req, res) => {
+    const issueId = req.params.issueId;
+    const { municipalityEmail, adminName } = req.body;
+
+    if (!municipalityEmail || !adminName) {
+        return res.status(400).json({ error: 'municipalityEmail and adminName are required' });
+    }
+
+    try {
+        // Validate that issueId is a valid MongoDB ObjectId
+        if (!issueId.match(/^[0-9a-fA-F]{24}$/)) {
+            return res.status(400).json({ error: 'Invalid issue ID' });
+        }
+
+        // Fetch the issue
+        const issue = await Issue.findById(issueId);
+        
+        if (!issue) {
+            return res.status(404).json({ error: 'Issue not found' });
+        }
+
+        // Verify the issue belongs to this municipality
+        if (issue.municipalityEmail !== normalizeText(municipalityEmail).toLowerCase()) {
+            return res.status(403).json({ error: 'Issue does not belong to this municipality' });
+        }
+
+        // Verify the issue is open
+        if (issue.status !== 'open') {
+            return res.status(400).json({ error: 'Only open issues can be marked for completion' });
+        }
+
+        // Fetch municipality name
+        const municipality = await Municipality.findOne({ 
+            contactEmail: normalizeText(municipalityEmail).toLowerCase() 
+        });
+
+        if (!municipality) {
+            return res.status(404).json({ error: 'Municipality not found' });
+        }
+
+        // Send email to issue reporter
+        const emailSent = await sendIssueCompletionEmail(
+            issue.userEmail,
+            issue.subject,
+            issue.description,
+            municipality.municipalityName,
+            normalizeText(adminName)
+        );
+
+        if (!emailSent) {
+            return res.status(500).json({ error: 'Failed to send completion email' });
+        }
+
+        return res.status(200).json({ 
+            message: 'Completion notification sent to issue reporter',
+            emailSent: true 
+        });
+    } catch (err) {
+        console.error('Error sending issue completion notification:', err);
+        return res.status(500).json({ error: 'Failed to send completion notification' });
     }
 });
 

@@ -105,6 +105,53 @@ export default function SubmitIssueScreen() {
     }
   };
 
+  const takePhotoOrVideo = async () => {
+    setMessage(null);
+
+    if (mediaItems.length >= 4) {
+      setMessage("You can attach up to 4 media items");
+      return;
+    }
+
+    const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!cameraPermission.granted) {
+      setMessage("Camera permission is required");
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images", "videos"],
+      allowsEditing: false,
+      quality: 0.7,
+      base64: true
+    });
+
+    if (result.canceled || !result.assets?.[0]) {
+      return;
+    }
+
+    const asset = result.assets[0];
+    const mediaType = asset.type === "video" ? "video" : "image";
+    try {
+      let mediaUrl = "";
+      if (asset.base64 && mediaType === "image") {
+        const mimeType = asset.mimeType || "image/jpeg";
+        mediaUrl = `data:${mimeType};base64,${asset.base64}`;
+      } else {
+        mediaUrl = await readUriAsDataUrl(asset.uri);
+      }
+
+      if (!mediaUrl.startsWith("data:")) {
+        setMessage("Could not read selected media");
+        return;
+      }
+
+      setMediaItems((prev) => [...prev, { mediaType, mediaUrl, previewUri: asset.uri }]);
+    } catch (err: any) {
+      setMessage(err.message || "Failed to attach media");
+    }
+  };
+
   useEffect(() => {
     loadMunicipality();
   }, [user?.area]);
@@ -173,6 +220,7 @@ export default function SubmitIssueScreen() {
         />
 
         <PrimaryButton label="Pick Image/Video From Gallery" onPress={pickMediaFromGallery} />
+        <PrimaryButton label="Take Photo/Video With Camera" onPress={takePhotoOrVideo} />
         {mediaItems.length > 0 ? (
           <View style={styles.mediaList}>
             <Text style={styles.mediaLabel}>Attached Media ({mediaItems.length}/4)</Text>

@@ -156,7 +156,7 @@ export default function AdminDashboard() {
               
               {issue.status === 'open' && (
                 <PrimaryButton 
-                  label={processingIssueId === issue._id ? "Sending..." : "✓ Completed"} 
+                  label={processingIssueId === issue._id ? "Sending..." : "Mark Completed"} 
                   onPress={() => handleIssueCompletion(issue._id, user?.firstName || "Admin")}
                   disabled={processingIssueId === issue._id}
                 />

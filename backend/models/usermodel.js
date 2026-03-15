@@ -23,6 +23,19 @@ const userSchema= new mongoose.Schema({
         ],
         default: []
     },
+    issueCompletionNotifications: {
+        type: [
+            {
+                issueId: { type: String, required: true },
+                issueSubject: { type: String, required: true },
+                municipalityName: { type: String, required: true },
+                message: { type: String, required: true },
+                read: { type: Boolean, default: false },
+                createdAt: { type: Date, default: Date.now }
+            }
+        ],
+        default: []
+    },
     createdAt: { type: Date, default: Date.now }
 })
 

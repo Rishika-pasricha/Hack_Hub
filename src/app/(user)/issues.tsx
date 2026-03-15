@@ -71,7 +71,7 @@ export default function IssuesTab() {
             <Text style={styles.issueMeta}>Submitted: {new Date(issue.createdAt).toLocaleString()}</Text>
             <Text style={styles.issueBody}>{issue.description}</Text>
             {issue.status === "open" ? (
-              <PrimaryButton label="Solved" onPress={() => handleResolve(issue._id)} disabled={working} />
+              <PrimaryButton label="Mark Solved" onPress={() => handleResolve(issue._id)} disabled={working} />
             ) : null}
           </View>
         ))}

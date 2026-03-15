@@ -144,6 +144,17 @@ export function notifyIssueCompletion(issueId: string, municipalityEmail: string
   });
 }
 
+export function getIssueCompletionNotifications(userEmail: string) {
+  return apiRequest<Array<{
+    issueId: string;
+    issueSubject: string;
+    municipalityName: string;
+    message: string;
+    read: boolean;
+    createdAt: string;
+  }>>(`/notifications/issue-completion?userEmail=${encodeURIComponent(userEmail)}`);
+}
+
 export function getProducts() {
   return apiRequest<Product[]>("/products");
 }

@@ -1139,6 +1139,27 @@ router.post('/reset-password', async (req, res) => {
     }
 });
 
+router.get('/notifications/issue-completion', async (req, res) => {
+    const userEmail = normalizeText(req.query.userEmail).toLowerCase();
+
+    if (!userEmail) {
+        return res.status(400).json({ error: 'userEmail is required' });
+    }
+
+    try {
+        const user = await usermodel.findOne({ email: userEmail }).select('issueCompletionNotifications');
+        
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        return res.status(200).json(user.issueCompletionNotifications || []);
+    } catch (err) {
+        console.error('Error fetching issue completion notifications:', err);
+        return res.status(500).json({ error: 'Failed to fetch notifications' });
+    }
+});
+
 router.post('/admin/issues/:issueId/request-completion', async (req, res) => {
     const issueId = req.params.issueId;
     const { municipalityEmail, adminName } = req.body;
@@ -1192,9 +1213,25 @@ router.post('/admin/issues/:issueId/request-completion', async (req, res) => {
             return res.status(500).json({ error: 'Failed to send completion email' });
         }
 
+        // Add in-app notification to user's profile
+        const notificationMessage = 'An issue has been solved, please check your mail for details.';
+        const user = await usermodel.findOne({ email: issue.userEmail });
+        
+        if (user) {
+            user.issueCompletionNotifications.push({
+                issueId: issueId,
+                issueSubject: issue.subject,
+                municipalityName: municipality.municipalityName,
+                message: notificationMessage,
+                read: false
+            });
+            await user.save();
+        }
+
         return res.status(200).json({ 
             message: 'Completion notification sent to issue reporter',
-            emailSent: true 
+            emailSent: true,
+            notificationCreated: !!user
         });
     } catch (err) {
         console.error('Error sending issue completion notification:', err);

@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { colors, spacing, typography } from "../../constants/theme";
-import { getApprovedBlogs, getLikeNotifications, getIssueCompletionNotifications, toggleBlogLike } from "../../services/community";
+import { getApprovedBlogs, getLikeNotifications, getIssueCompletionNotifications, markIssueNotificationAsRead, toggleBlogLike } from "../../services/community";
 import { BlogPost } from "../../types/community";
 import { useAuth } from "../../context/AuthContext";
 
@@ -116,6 +116,7 @@ export default function BlogsTab() {
       productName?: string;
       issueId?: string;
       issueSubject?: string;
+      read?: boolean;
     }>
   >([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
@@ -208,7 +209,8 @@ export default function BlogsTab() {
           message: issue.message,
           createdAt: issue.createdAt,
           issueId: issue.issueId,
-          issueSubject: issue.issueSubject
+          issueSubject: issue.issueSubject,
+          read: issue.read
         }))
       ];
       
@@ -483,7 +485,19 @@ export default function BlogsTab() {
               ? notifications.map((item) => (
                   <Pressable
                     key={item.id}
-                    onPress={() => {
+                    onPress={async () => {
+                      if (item.type === "issue_completion" && item.issueId && user?.email) {
+                        try {
+                          await markIssueNotificationAsRead(item.issueId, user.email.toLowerCase());
+                          setNotifications((prev) =>
+                            prev.map((notif) =>
+                              notif.issueId === item.issueId ? { ...notif, read: true } : notif
+                            )
+                          );
+                        } catch (err) {
+                          console.error('Failed to mark notification as read:', err);
+                        }
+                      }
                       if (item.productId) {
                         setNotificationsOpen(false);
                         router.push({
@@ -495,6 +509,10 @@ export default function BlogsTab() {
                         router.push("/issues");
                       }
                     }}
+                    style={[
+                      styles.notificationItem,
+                      item.read && item.type === "issue_completion" ? styles.notificationItemRead : styles.notificationItemUnread
+                    ]}
                   >
                     <Text style={styles.notificationItemText}>{item.message}</Text>
                     {item.type === "issue_completion" && item.issueSubject ? (
@@ -801,6 +819,18 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.xs,
     color: colors.textSecondary,
     marginTop: spacing.xs
+  },
+  notificationItem: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    marginVertical: spacing.xs,
+    borderRadius: spacing.sm
+  },
+  notificationItemUnread: {
+    backgroundColor: colors.border
+  },
+  notificationItemRead: {
+    backgroundColor: "transparent"
   },
   videoCard: {
     borderRadius: spacing.sm,

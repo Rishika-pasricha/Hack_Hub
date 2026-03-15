@@ -155,6 +155,13 @@ export function getIssueCompletionNotifications(userEmail: string) {
   }>>(`/notifications/issue-completion?userEmail=${encodeURIComponent(userEmail)}`);
 }
 
+export function markIssueNotificationAsRead(issueId: string, userEmail: string) {
+  return apiRequest<{ message: string }>(`/notifications/issue-completion/${issueId}/read`, {
+    method: "PATCH",
+    body: { userEmail }
+  });
+}
+
 export function getProducts() {
   return apiRequest<Product[]>("/products");
 }

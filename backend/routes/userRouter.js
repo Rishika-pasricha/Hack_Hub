@@ -1160,6 +1160,40 @@ router.get('/notifications/issue-completion', async (req, res) => {
     }
 });
 
+router.patch('/notifications/issue-completion/:issueId/read', async (req, res) => {
+    const issueId = req.params.issueId;
+    const userEmail = normalizeText(req.body.userEmail).toLowerCase();
+
+    if (!userEmail) {
+        return res.status(400).json({ error: 'userEmail is required' });
+    }
+
+    try {
+        const user = await usermodel.findOne({ email: userEmail });
+        
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Find and mark the notification as read
+        const notification = user.issueCompletionNotifications.find(
+            (notif: any) => String(notif.issueId) === String(issueId)
+        );
+
+        if (!notification) {
+            return res.status(404).json({ error: 'Notification not found' });
+        }
+
+        notification.read = true;
+        await user.save();
+
+        return res.status(200).json({ message: 'Notification marked as read' });
+    } catch (err) {
+        console.error('Error marking notification as read:', err);
+        return res.status(500).json({ error: 'Failed to mark notification as read' });
+    }
+});
+
 router.post('/admin/issues/:issueId/request-completion', async (req, res) => {
     const issueId = req.params.issueId;
     const { municipalityEmail, adminName } = req.body;

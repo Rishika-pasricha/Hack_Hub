@@ -16,6 +16,7 @@ export default function RootLayout() {
         <Stack.Screen name="my-posts" options={{ headerShown: true, title: "My Posts" }} />
         <Stack.Screen name="profile-settings" options={{ headerShown: true, title: "Settings" }} />
         <Stack.Screen name="forgot-password" options={{ headerShown: true, title: "Forgot Password" }} />
+        <Stack.Screen name="product-details" options={{ headerShown: false }} />
       </Stack>
     </AuthProvider>
   );

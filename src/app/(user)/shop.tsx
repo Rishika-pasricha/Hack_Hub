@@ -1,41 +1,24 @@
 import { useCallback, useState } from "react";
 import {
-  Alert,
   FlatList,
   Image,
-  Linking,
   Modal,
   Pressable,
   StyleSheet,
   Text,
   View
 } from "react-native";
-import { PrimaryButton } from "../../components/ui/PrimaryButton";
 import { colors, spacing, typography } from "../../constants/theme";
-import { getProducts, reportProduct } from "../../services/community";
+import { getProducts } from "../../services/community";
 import { Product } from "../../types/community";
 import { useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "../../context/AuthContext";
 
 export default function ShopTab() {
-  const REPORT_REASONS: Array<{ value: "spam" | "fake" | "offensive" | "scam"; label: string }> = [
-    { value: "spam", label: "Spam" },
-    { value: "fake", label: "Fake Listing" },
-    { value: "offensive", label: "Offensive" },
-    { value: "scam", label: "Scam" }
-  ];
   const router = useRouter();
-  const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [reporting, setReporting] = useState(false);
-  const [selectedReportReason, setSelectedReportReason] = useState<"spam" | "fake" | "offensive" | "scam" | null>(
-    null
-  );
-  const [reportStatus, setReportStatus] = useState<string | null>(null);
 
   const loadProducts = async () => {
     try {
@@ -54,78 +37,13 @@ export default function ShopTab() {
     }, [])
   );
 
-  const handleEnquire = async () => {
-    if (!selectedProduct) {
-      return;
-    }
-
-    const subject = `Ecofy Marketplace Enquiry: ${selectedProduct.productName}`;
-    const body =
-      `Hi ${selectedProduct.sellerName},\n\n` +
-      `I found your listing "${selectedProduct.productName}" on Ecofy and I am interested in buying it.\n\n` +
-      `Could you please share more details about availability and pickup/delivery options?\n\n` +
-      `Thanks,\n` +
-      `Ecofy User`;
-
-    const gmailUrl =
-      `googlegmail://co?to=${encodeURIComponent(selectedProduct.sellerEmail)}` +
-      `&subject=${encodeURIComponent(subject)}` +
-      `&body=${encodeURIComponent(body)}`;
-    const mailtoUrl =
-      `mailto:${encodeURIComponent(selectedProduct.sellerEmail)}` +
-      `?subject=${encodeURIComponent(subject)}` +
-      `&body=${encodeURIComponent(body)}`;
-
-    try {
-      const canOpenGmail = await Linking.canOpenURL(gmailUrl);
-      await Linking.openURL(canOpenGmail ? gmailUrl : mailtoUrl);
-    } catch (err: any) {
-      setMessage(err.message || "Failed to open email app");
-    }
-  };
-
-  const handleReportProduct = async () => {
-    setReportStatus(null);
-    if (!selectedProduct || !user?.email) {
-      const text = "Please login to report products";
-      setMessage(text);
-      setReportStatus(text);
-      Alert.alert("Report Product", text);
-      return;
-    }
-
-    if (selectedProduct.sellerEmail.toLowerCase() === user.email.toLowerCase()) {
-      const text = "You cannot report your own product";
-      setMessage(text);
-      setReportStatus(text);
-      Alert.alert("Report Product", text);
-      return;
-    }
-    if (!selectedReportReason) {
-      const text = "Please select a report reason";
-      setMessage(text);
-      setReportStatus(text);
-      Alert.alert("Report Product", text);
-      return;
-    }
-
-    try {
-      setReporting(true);
-      const response = await reportProduct(selectedProduct._id, user.email.toLowerCase(), selectedReportReason);
-      const text = response.message || "Product reported";
-      setMessage(text);
-      setReportStatus(text);
-      Alert.alert("Report Product", text);
-      setSelectedReportReason(null);
-      await loadProducts();
-    } catch (err: any) {
-      const text = err.message || "Failed to report product";
-      setMessage(text);
-      setReportStatus(text);
-      Alert.alert("Report Product", text);
-    } finally {
-      setReporting(false);
-    }
+  const handleProductPress = (product: Product) => {
+    router.push({
+      pathname: "/product-details",
+      params: {
+        id: product._id
+      }
+    });
   };
 
   const renderHeader = () => (
@@ -158,10 +76,7 @@ export default function ShopTab() {
           return (
             <Pressable
               style={styles.productCard}
-              onPress={() => {
-                setSelectedProduct(item);
-                setSelectedReportReason(null);
-              }}
+              onPress={() => handleProductPress(item)}
             >
               <View style={styles.imageContainer}>
                 {item.productMedia && item.productMedia.length > 1 && (
@@ -181,83 +96,11 @@ export default function ShopTab() {
                 {item.productName}
               </Text>
               <Text style={styles.productPrice}>Rs. {item.price}</Text>
-              <Text style={styles.tapHint}>Tap for seller details</Text>
+              <Text style={styles.tapHint}>Tap to view details</Text>
             </Pressable>
           );
         }}
       />
-
-      <Modal visible={!!selectedProduct} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{selectedProduct?.productName}</Text>
-            {reportStatus ? <Text style={styles.reportStatus}>{reportStatus}</Text> : null}
-            
-            {/* Media Gallery */}
-            {selectedProduct?.productMedia && selectedProduct.productMedia.length > 0 && (
-              <View style={styles.modalMediaContainer}>
-                <FlatList
-                  data={selectedProduct.productMedia}
-                  keyExtractor={(_, idx) => `media-${idx}`}
-                  horizontal
-                  pagingEnabled
-                  showsHorizontalScrollIndicator={true}
-                  renderItem={({ item: mediaItem }) => (
-                    <View style={styles.modalMediaItem}>
-                      {mediaItem.mediaType === "image" ? (
-                        <Image source={{ uri: mediaItem.mediaUrl }} style={styles.modalMedia} resizeMode="contain" />
-                      ) : (
-                        <View style={[styles.modalMedia, styles.videoPlaceholder]}>
-                          <Text style={styles.videoIndicator}>▶ Video</Text>
-                        </View>
-                      )}
-                    </View>
-                  )}
-                />
-              </View>
-            )}
-            
-            {selectedProduct?.description ? (
-              <Text style={styles.detailText}>Description: {selectedProduct.description}</Text>
-            ) : null}
-            <Text style={styles.detailText}>Price: Rs. {selectedProduct?.price}</Text>
-            <Text style={styles.detailText}>Reports: {selectedProduct?.reportCount || 0}/5</Text>
-            <PrimaryButton label="Enquire" onPress={handleEnquire} />
-            <Text style={styles.detailText}>Report reason:</Text>
-            <View style={styles.reasonRow}>
-              {REPORT_REASONS.map((reason) => (
-                <Pressable
-                  key={reason.value}
-                  style={[
-                    styles.reasonChip,
-                    selectedReportReason === reason.value ? styles.reasonChipSelected : null
-                  ]}
-                  onPress={() => setSelectedReportReason(reason.value)}
-                >
-                  <Text
-                    style={[
-                      styles.reasonChipText,
-                      selectedReportReason === reason.value ? styles.reasonChipTextSelected : null
-                    ]}
-                  >
-                    {reason.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            <PrimaryButton label={reporting ? "Reporting..." : "Report Product"} onPress={handleReportProduct} disabled={reporting} />
-            <Text style={styles.detailText}>City: {selectedProduct?.city}</Text>
-            <PrimaryButton
-              label="Close"
-              onPress={() => {
-                setSelectedProduct(null);
-                setReportStatus(null);
-                setSelectedReportReason(null);
-              }}
-            />
-          </View>
-        </View>
-      </Modal>
 
       <Modal visible={drawerOpen} transparent animationType="fade" onRequestClose={() => setDrawerOpen(false)}>
         <View style={styles.drawerOverlay}>

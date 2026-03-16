@@ -174,7 +174,10 @@ export function submitProduct(payload: {
   productName: string;
   description?: string;
   price: number;
-  productImageUrl: string;
+  productMedia: Array<{
+    mediaType: "image" | "video";
+    mediaUrl: string;
+  }>;
   sellerName: string;
   sellerEmail: string;
   city: string;
@@ -193,7 +196,10 @@ export function updateProduct(
     description?: string;
     price: number;
     city: string;
-    productImageUrl?: string;
+    productMedia?: Array<{
+      mediaType: "image" | "video";
+      mediaUrl: string;
+    }>;
   }
 ) {
   return apiRequest<{ message: string }>(`/products/${productId}`, {
@@ -211,4 +217,19 @@ export function deleteProduct(productId: string, sellerEmail: string) {
 
 export function getMunicipalityLeaderboard() {
   return apiRequest<MunicipalityLeaderboardEntry[]>("/issues/leaderboard");
+}
+
+export function getMunicipalityActivityMetrics(municipalityEmail: string) {
+  return apiRequest<{
+    municipalityName: string;
+    district: string;
+    totalIssues: number;
+    resolvedIssues: number;
+    openIssues: number;
+    resolvedThisMonth: number;
+    avgResolutionTime: number;
+    activeCitizensCount: number;
+    approvedBlogsThisMonth: number;
+    productsListedThisMonth: number;
+  }>(`/municipality/activity-analytics?municipalityEmail=${encodeURIComponent(municipalityEmail)}`);
 }

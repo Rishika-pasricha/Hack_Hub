@@ -574,18 +574,21 @@ router.post('/issues/submit', async (req, res) => {
         return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Validate media if provided
-    if (media && Array.isArray(media)) {
-        for (const item of media) {
-            if (!item.mediaType || !item.mediaUrl) {
-                return res.status(400).json({ error: 'Invalid media format' });
-            }
-            if (!['image', 'video'].includes(item.mediaType)) {
-                return res.status(400).json({ error: 'Media type must be image or video' });
-            }
-            if (!String(item.mediaUrl).startsWith('data:')) {
-                return res.status(400).json({ error: 'Please upload media from gallery' });
-            }
+    // Media is now required
+    if (!media || !Array.isArray(media) || media.length === 0) {
+        return res.status(400).json({ error: 'At least one image or video is required' });
+    }
+
+    // Validate media
+    for (const item of media) {
+        if (!item.mediaType || !item.mediaUrl) {
+            return res.status(400).json({ error: 'Invalid media format' });
+        }
+        if (!['image', 'video'].includes(item.mediaType)) {
+            return res.status(400).json({ error: 'Media type must be image or video' });
+        }
+        if (!String(item.mediaUrl).startsWith('data:')) {
+            return res.status(400).json({ error: 'Please upload media from gallery' });
         }
     }
 
@@ -719,6 +722,7 @@ router.get('/admin/issues', async (req, res) => {
 
 router.get('/issues/leaderboard', async (req, res) => {
     try {
+        const limit = parseInt(req.query.limit) || 10;
         const municipalities = await Municipality.find({}).lean();
         
         const leaderboardData = await Promise.all(
@@ -741,17 +745,95 @@ router.get('/issues/leaderboard', async (req, res) => {
             })
         );
 
-        // Sort by resolved issues (descending), then by total issues (descending)
+        // Sort by resolution ratio (best first), then by resolved issues (descending)
         const sorted = leaderboardData.sort((a, b) => {
-            if (b.resolvedIssues !== a.resolvedIssues) {
-                return b.resolvedIssues - a.resolvedIssues;
+            const ratioA = parseFloat(a.resolutionRate);
+            const ratioB = parseFloat(b.resolutionRate);
+            if (ratioB !== ratioA) {
+                return ratioB - ratioA;
             }
-            return b.totalIssues - a.totalIssues;
-        });
+            return b.resolvedIssues - a.resolvedIssues;
+        }).slice(0, limit);
 
         return res.status(200).json(sorted);
     } catch (err) {
         return res.status(500).json({ error: 'Failed to load leaderboard' });
+    }
+});
+
+router.get('/municipality/activity-analytics', async (req, res) => {
+    try {
+        const municipalityEmail = normalizeText(req.query.municipalityEmail).toLowerCase();
+        
+        if (!municipalityEmail) {
+            return res.status(400).json({ error: 'municipalityEmail is required' });
+        }
+
+        const municipality = await Municipality.findOne({ contactEmail: municipalityEmail });
+        if (!municipality) {
+            return res.status(404).json({ error: 'Municipality not found' });
+        }
+
+        // Get current date and 30 days ago
+        const now = new Date();
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+        // Total issues for this municipality
+        const totalIssues = await Issue.countDocuments({ municipalityEmail });
+        const resolvedIssues = await Issue.countDocuments({ municipalityEmail, status: 'resolved' });
+        const openIssues = totalIssues - resolvedIssues;
+
+        // Issues resolved in the last 30 days
+        const resolvedThisMonth = await Issue.countDocuments({
+            municipalityEmail,
+            status: 'resolved',
+            updatedAt: { $gte: thirtyDaysAgo }
+        });
+
+        // Average resolution time in days
+        let avgResolutionTime = 0;
+        if (resolvedIssues > 0) {
+            const resolvedIssuesData = await Issue.find(
+                { municipalityEmail, status: 'resolved' },
+                { createdAt: 1, updatedAt: 1 }
+            );
+            const totalTime = resolvedIssuesData.reduce((sum, issue) => {
+                const days = (new Date(issue.updatedAt) - new Date(issue.createdAt)) / (1000 * 60 * 60 * 24);
+                return sum + days;
+            }, 0);
+            avgResolutionTime = (totalTime / resolvedIssues).toFixed(1);
+        }
+
+        // Count unique citizens reporting issues
+        const activeCitizens = await Issue.distinct('userEmail', { municipalityEmail });
+
+        // Blogs approved in the last 30 days
+        const approvedBlogsThisMonth = await BlogPost.countDocuments({
+            municipalityEmail,
+            approved: true,
+            createdAt: { $gte: thirtyDaysAgo }
+        });
+
+        // Products listed in the last 30 days for this municipality's area
+        const productsThisMonth = await Product.countDocuments({
+            city: municipality.municipalityName,
+            createdAt: { $gte: thirtyDaysAgo }
+        });
+
+        return res.status(200).json({
+            municipalityName: municipality.municipalityName,
+            district: municipality.district,
+            totalIssues,
+            resolvedIssues,
+            openIssues,
+            resolvedThisMonth,
+            avgResolutionTime,
+            activeCitizensCount: activeCitizens.length,
+            approvedBlogsThisMonth,
+            productsListedThisMonth: productsThisMonth
+        });
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to load activity analytics' });
     }
 });
 
@@ -790,10 +872,14 @@ router.get('/products/my', async (req, res) => {
 });
 
 router.post('/products/submit', async (req, res) => {
-    const { productName, description, price, productImageUrl, sellerName, sellerEmail, city } = req.body;
+    const { productName, description, price, productMedia, sellerName, sellerEmail, city } = req.body;
 
-    if (!productName || !price || !productImageUrl || !sellerName || !sellerEmail || !city) {
+    if (!productName || !price || !sellerName || !sellerEmail || !city) {
         return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    if (!productMedia || !Array.isArray(productMedia) || productMedia.length === 0 || productMedia.length > 4) {
+        return res.status(400).json({ error: 'Product must have 1-4 media items' });
     }
 
     const parsedPrice = Number(price);
@@ -801,8 +887,17 @@ router.post('/products/submit', async (req, res) => {
         return res.status(400).json({ error: 'Price must be a positive number' });
     }
 
-    if (!isBase64ImageDataUrl(productImageUrl)) {
-        return res.status(400).json({ error: 'Please upload image from gallery' });
+    // Validate each media item
+    for (const item of productMedia) {
+        if (!item.mediaType || !item.mediaUrl) {
+            return res.status(400).json({ error: 'Invalid media format' });
+        }
+        if (!['image', 'video'].includes(item.mediaType)) {
+            return res.status(400).json({ error: 'Media type must be image or video' });
+        }
+        if (!String(item.mediaUrl).startsWith('data:')) {
+            return res.status(400).json({ error: 'Please upload media from gallery' });
+        }
     }
 
     try {
@@ -818,7 +913,10 @@ router.post('/products/submit', async (req, res) => {
             productName: String(productName).trim(),
             description: String(description || '').trim(),
             price: parsedPrice,
-            productImageUrl: String(productImageUrl).trim(),
+            productMedia: productMedia.map(item => ({
+                mediaType: item.mediaType,
+                mediaUrl: String(item.mediaUrl)
+            })),
             sellerName: String(sellerName).trim(),
             sellerEmail: String(sellerEmail).toLowerCase().trim(),
             city: String(city).trim()
@@ -835,7 +933,7 @@ router.post('/products/submit', async (req, res) => {
 
 router.patch('/products/:id', async (req, res) => {
     const { id } = req.params;
-    const { sellerEmail, productName, description, price, city, productImageUrl } = req.body;
+    const { sellerEmail, productName, description, price, city, productMedia } = req.body;
     const normalizedSellerEmail = normalizeText(sellerEmail).toLowerCase();
 
     if (!normalizedSellerEmail) {
@@ -858,11 +956,26 @@ router.patch('/products/:id', async (req, res) => {
             price: parsedPrice,
             city: String(city).trim()
         };
-        if (productImageUrl) {
-            if (!isBase64ImageDataUrl(productImageUrl)) {
-                return res.status(400).json({ error: 'Please upload image from gallery' });
+        if (productMedia && Array.isArray(productMedia) && productMedia.length > 0) {
+            if (productMedia.length > 4) {
+                return res.status(400).json({ error: 'Product cannot have more than 4 media items' });
             }
-            updateDoc.productImageUrl = String(productImageUrl).trim();
+            // Validate each media item
+            for (const item of productMedia) {
+                if (!item.mediaType || !item.mediaUrl) {
+                    return res.status(400).json({ error: 'Invalid media format' });
+                }
+                if (!['image', 'video'].includes(item.mediaType)) {
+                    return res.status(400).json({ error: 'Media type must be image or video' });
+                }
+                if (!String(item.mediaUrl).startsWith('data:')) {
+                    return res.status(400).json({ error: 'Please upload media from gallery' });
+                }
+            }
+            updateDoc.productMedia = productMedia.map(item => ({
+                mediaType: item.mediaType,
+                mediaUrl: String(item.mediaUrl)
+            }));
         }
 
         const updated = await Product.findOneAndUpdate(

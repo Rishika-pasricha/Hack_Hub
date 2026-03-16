@@ -5,7 +5,19 @@ const productSchema = new mongoose.Schema(
     productName: { type: String, trim: true, required: true },
     description: { type: String, trim: true, default: "" },
     price: { type: Number, required: true },
-    productImageUrl: { type: String, trim: true, required: true },
+    productMedia: {
+      type: [
+        {
+          mediaType: { type: String, enum: ['image', 'video'], required: true },
+          mediaUrl: { type: String, required: true }
+        }
+      ],
+      required: true,
+      minlength: 1,
+      maxlength: 4
+    },
+    // Legacy field for backward compatibility during migration
+    productImageUrl: { type: String, trim: true },
     sellerName: { type: String, trim: true, required: true },
     sellerEmail: { type: String, trim: true, lowercase: true, required: true },
     city: { type: String, trim: true, required: true },

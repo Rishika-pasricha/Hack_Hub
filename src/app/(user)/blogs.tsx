@@ -368,9 +368,9 @@ export default function BlogsTab() {
             }}
           >
             <Ionicons name="notifications-outline" size={20} color={colors.text} />
-            {notifications.length > 0 ? (
+            {notifications.filter((n) => !n.read).length > 0 ? (
               <View style={styles.notificationBadge}>
-                <Text style={styles.notificationBadgeText}>{Math.min(notifications.length, 9)}+</Text>
+                <Text style={styles.notificationBadgeText}>{Math.min(notifications.filter((n) => !n.read).length, 9)}+</Text>
               </View>
             ) : null}
           </Pressable>

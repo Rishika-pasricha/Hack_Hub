@@ -152,22 +152,39 @@ export default function ShopTab() {
         ListHeaderComponent={renderHeader}
         contentContainerStyle={styles.content}
         columnWrapperStyle={styles.row}
-        renderItem={({ item }) => (
-          <Pressable
-            style={styles.productCard}
-            onPress={() => {
-              setSelectedProduct(item);
-              setSelectedReportReason(null);
-            }}
-          >
-            <Image source={{ uri: item.productImageUrl }} style={styles.productImage} resizeMode="cover" />
-            <Text style={styles.productTitle} numberOfLines={2}>
-              {item.productName}
-            </Text>
-            <Text style={styles.productPrice}>Rs. {item.price}</Text>
-            <Text style={styles.tapHint}>Tap for seller details</Text>
-          </Pressable>
-        )}
+        renderItem={({ item }) => {
+          // Get first image/video for thumbnail, or use legacy productImageUrl
+          const thumbnailUri = item.productMedia?.[0]?.mediaUrl || item.productImageUrl || "";
+          return (
+            <Pressable
+              style={styles.productCard}
+              onPress={() => {
+                setSelectedProduct(item);
+                setSelectedReportReason(null);
+              }}
+            >
+              <View style={styles.imageContainer}>
+                {item.productMedia && item.productMedia.length > 1 && (
+                  <View style={styles.mediaCountBadge}>
+                    <Text style={styles.mediaCountBadgeText}>{item.productMedia.length}</Text>
+                  </View>
+                )}
+                {thumbnailUri ? (
+                  <Image source={{ uri: thumbnailUri }} style={styles.productImage} resizeMode="cover" />
+                ) : (
+                  <View style={[styles.productImage, styles.placeholderImage]}>
+                    <Text style={styles.placeholderText}>No Image</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.productTitle} numberOfLines={2}>
+                {item.productName}
+              </Text>
+              <Text style={styles.productPrice}>Rs. {item.price}</Text>
+              <Text style={styles.tapHint}>Tap for seller details</Text>
+            </Pressable>
+          );
+        }}
       />
 
       <Modal visible={!!selectedProduct} transparent animationType="fade">
@@ -175,6 +192,31 @@ export default function ShopTab() {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>{selectedProduct?.productName}</Text>
             {reportStatus ? <Text style={styles.reportStatus}>{reportStatus}</Text> : null}
+            
+            {/* Media Gallery */}
+            {selectedProduct?.productMedia && selectedProduct.productMedia.length > 0 && (
+              <View style={styles.modalMediaContainer}>
+                <FlatList
+                  data={selectedProduct.productMedia}
+                  keyExtractor={(_, idx) => `media-${idx}`}
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={true}
+                  renderItem={({ item: mediaItem }) => (
+                    <View style={styles.modalMediaItem}>
+                      {mediaItem.mediaType === "image" ? (
+                        <Image source={{ uri: mediaItem.mediaUrl }} style={styles.modalMedia} resizeMode="contain" />
+                      ) : (
+                        <View style={[styles.modalMedia, styles.videoPlaceholder]}>
+                          <Text style={styles.videoIndicator}>▶ Video</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                />
+              </View>
+            )}
+            
             {selectedProduct?.description ? (
               <Text style={styles.detailText}>Description: {selectedProduct.description}</Text>
             ) : null}
@@ -322,6 +364,64 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 130,
     backgroundColor: colors.background
+  },
+  imageContainer: {
+    position: "relative",
+    width: "100%"
+  },
+  mediaCountBadge: {
+    position: "absolute",
+    top: spacing.xs,
+    right: spacing.xs,
+    backgroundColor: colors.primaryDark,
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10
+  },
+  mediaCountBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.white
+  },
+  placeholderImage: {
+    justifyContent: "center",
+    alignItems: "center"
+  },
+  placeholderText: {
+    fontSize: typography.sizes.sm,
+    color: colors.textSecondary
+  },
+  modalMediaContainer: {
+    width: "100%",
+    height: 200,
+    backgroundColor: colors.background,
+    borderRadius: spacing.sm,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border
+  },
+  modalMediaItem: {
+    width: 320,
+    height: 200,
+    paddingHorizontal: spacing.sm
+  },
+  modalMedia: {
+    width: "100%",
+    height: "100%",
+    borderRadius: spacing.xs
+  },
+  videoPlaceholder: {
+    backgroundColor: colors.muted,
+    justifyContent: "center",
+    alignItems: "center"
+  },
+  videoIndicator: {
+    fontSize: typography.sizes.lg,
+    fontWeight: "700",
+    color: colors.text
   },
   modalOverlay: {
     flex: 1,

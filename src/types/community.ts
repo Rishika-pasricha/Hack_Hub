@@ -57,7 +57,12 @@ export type Product = {
   productName: string;
   description?: string;
   price: number;
-  productImageUrl: string;
+  productMedia?: Array<{
+    mediaType: "image" | "video";
+    mediaUrl: string;
+  }>;
+  // Legacy field for backward compatibility
+  productImageUrl?: string;
   sellerName: string;
   sellerEmail: string;
   city: string;

@@ -174,6 +174,11 @@ export default function SubmitIssueScreen() {
       return;
     }
 
+    if (mediaItems.length === 0) {
+      setMessage("At least one image or video is required");
+      return;
+    }
+
     try {
       setWorking(true);
       await submitIssue({

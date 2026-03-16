@@ -39,9 +39,10 @@ export default function ShopTab() {
 
   const handleProductPress = (product: Product) => {
     router.push({
-      pathname: "/product-details",
+      pathname: "/product/[id]",
       params: {
-        id: product._id
+        id: product._id,
+        product: JSON.stringify(product)
       }
     });
   };

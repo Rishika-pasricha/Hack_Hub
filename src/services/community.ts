@@ -166,10 +166,6 @@ export function getProducts() {
   return apiRequest<Product[]>("/products");
 }
 
-export function getProductById(id: string) {
-  return apiRequest<Product>(`/products/${id}`);
-}
-
 export function getMyProducts(sellerEmail: string) {
   return apiRequest<Product[]>(`/products/my?sellerEmail=${encodeURIComponent(sellerEmail)}`);
 }

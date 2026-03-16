@@ -840,45 +840,14 @@ router.get('/municipality/activity-analytics', async (req, res) => {
 router.get('/products', async (_req, res) => {
     try {
         const products = await Product.find({}).sort({ createdAt: -1 }).limit(500).lean();
-        const sanitized = products.map((product) => {
-            // Handle backward compatibility: if no productMedia but has productImageUrl, convert it
-            let media = product.productMedia;
-            if ((!media || media.length === 0) && product.productImageUrl) {
-                media = [{ mediaType: 'image', mediaUrl: product.productImageUrl }];
-            }
-            return {
-                ...product,
-                productMedia: media || [],
-                reportCount: Array.isArray(product.reports) ? product.reports.length : 0,
-                reports: undefined
-            };
-        });
+        const sanitized = products.map((product) => ({
+            ...product,
+            reportCount: Array.isArray(product.reports) ? product.reports.length : 0,
+            reports: undefined
+        }));
         return res.status(200).json(sanitized);
     } catch (err) {
         return res.status(500).json({ error: 'Failed to load products' });
-    }
-});
-
-router.get('/products/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const product = await Product.findById(id).lean();
-        if (!product) {
-            return res.status(404).json({ error: 'Product not found' });
-        }
-        // Handle backward compatibility: if no productMedia but has productImageUrl, convert it
-        let media = product.productMedia;
-        if ((!media || media.length === 0) && product.productImageUrl) {
-            media = [{ mediaType: 'image', mediaUrl: product.productImageUrl }];
-        }
-        return res.status(200).json({
-            ...product,
-            productMedia: media || [],
-            reportCount: Array.isArray(product.reports) ? product.reports.length : 0,
-            reports: undefined
-        });
-    } catch (err) {
-        return res.status(500).json({ error: 'Failed to load product' });
     }
 });
 
@@ -891,19 +860,11 @@ router.get('/products/my', async (req, res) => {
 
     try {
         const products = await Product.find({ sellerEmail }).sort({ createdAt: -1 }).limit(500).lean();
-        const sanitized = products.map((product) => {
-            // Handle backward compatibility: if no productMedia but has productImageUrl, convert it
-            let media = product.productMedia;
-            if ((!media || media.length === 0) && product.productImageUrl) {
-                media = [{ mediaType: 'image', mediaUrl: product.productImageUrl }];
-            }
-            return {
-                ...product,
-                productMedia: media || [],
-                reportCount: Array.isArray(product.reports) ? product.reports.length : 0,
-                reports: undefined
-            };
-        });
+        const sanitized = products.map((product) => ({
+            ...product,
+            reportCount: Array.isArray(product.reports) ? product.reports.length : 0,
+            reports: undefined
+        }));
         return res.status(200).json(sanitized);
     } catch (err) {
         return res.status(500).json({ error: 'Failed to load your products' });

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useMemo } from "react";
 import {
   FlatList,
   Image,
@@ -6,7 +6,8 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  View
+  View,
+  RefreshControl
 } from "react-native";
 import { colors, spacing, typography } from "../../constants/theme";
 import { getProducts } from "../../services/community";
@@ -19,35 +20,39 @@ export default function ShopTab() {
   const [products, setProducts] = useState<Product[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const loadProducts = async () => {
+  const loadProducts = useCallback(async () => {
     try {
       const data = await getProducts();
       setProducts(data);
+      setMessage(null);
     } catch (err: any) {
       setMessage(err.message || "Failed to load products");
     }
-  };
+  }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadProducts();
+    setRefreshing(false);
+  }, [loadProducts]);
 
   useFocusEffect(
     useCallback(() => {
       loadProducts();
-      const interval = setInterval(loadProducts, 20000);
-      return () => clearInterval(interval);
-    }, [])
+    }, [loadProducts])
   );
 
-  const handleProductPress = (product: Product) => {
+  const handleProductPress = useCallback((product: Product) => {
+    // Store product ID for quick lookup
     router.push({
       pathname: "/product/[id]",
-      params: {
-        id: product._id,
-        product: JSON.stringify(product)
-      }
+      params: { id: product._id }
     });
-  };
+  }, [router]);
 
-  const renderHeader = () => (
+  const renderHeader = useMemo(() => (
     <View style={styles.header}>
       <View style={styles.headerTopRow}>
         <Pressable style={styles.menuButton} onPress={() => setDrawerOpen(true)}>
@@ -59,7 +64,40 @@ export default function ShopTab() {
       {message ? <Text style={styles.info}>{message}</Text> : null}
       {products.length === 0 ? <Text style={styles.cardText}>No products uploaded yet.</Text> : null}
     </View>
-  );
+  ), [message, products.length]);
+
+  const renderItem = useCallback(({ item }: { item: Product }) => {
+    const thumbnailUri = item.productMedia?.[0]?.mediaUrl || item.productImageUrl || "";
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          styles.productCard,
+          pressed && styles.productCardPressed
+        ]}
+        onPress={() => handleProductPress(item)}
+      >
+        <View style={styles.imageContainer}>
+          {item.productMedia && item.productMedia.length > 1 && (
+            <View style={styles.mediaCountBadge}>
+              <Text style={styles.mediaCountBadgeText}>{item.productMedia.length}</Text>
+            </View>
+          )}
+          {thumbnailUri ? (
+            <Image source={{ uri: thumbnailUri }} style={styles.productImage} resizeMode="cover" />
+          ) : (
+            <View style={[styles.productImage, styles.placeholderImage]}>
+              <Text style={styles.placeholderText}>No Image</Text>
+            </View>
+          )}
+        </View>
+        <Text style={styles.productTitle} numberOfLines={2}>
+          {item.productName}
+        </Text>
+        <Text style={styles.productPrice}>Rs. {item.price}</Text>
+        <Text style={styles.tapHint}>Tap to view details</Text>
+      </Pressable>
+    );
+  }, [handleProductPress]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -71,36 +109,14 @@ export default function ShopTab() {
         ListHeaderComponent={renderHeader}
         contentContainerStyle={styles.content}
         columnWrapperStyle={styles.row}
-        renderItem={({ item }) => {
-          // Get first image/video for thumbnail, or use legacy productImageUrl
-          const thumbnailUri = item.productMedia?.[0]?.mediaUrl || item.productImageUrl || "";
-          return (
-            <Pressable
-              style={styles.productCard}
-              onPress={() => handleProductPress(item)}
-            >
-              <View style={styles.imageContainer}>
-                {item.productMedia && item.productMedia.length > 1 && (
-                  <View style={styles.mediaCountBadge}>
-                    <Text style={styles.mediaCountBadgeText}>{item.productMedia.length}</Text>
-                  </View>
-                )}
-                {thumbnailUri ? (
-                  <Image source={{ uri: thumbnailUri }} style={styles.productImage} resizeMode="cover" />
-                ) : (
-                  <View style={[styles.productImage, styles.placeholderImage]}>
-                    <Text style={styles.placeholderText}>No Image</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.productTitle} numberOfLines={2}>
-                {item.productName}
-              </Text>
-              <Text style={styles.productPrice}>Rs. {item.price}</Text>
-              <Text style={styles.tapHint}>Tap to view details</Text>
-            </Pressable>
-          );
-        }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+          />
+        }
+        renderItem={renderItem}
       />
 
       <Modal visible={drawerOpen} transparent animationType="fade" onRequestClose={() => setDrawerOpen(false)}>
@@ -121,10 +137,11 @@ export default function ShopTab() {
               style={styles.drawerItem}
               onPress={() => {
                 setDrawerOpen(false);
-                router.push("/my-products");
+                // My Products - coming soon
               }}
+              disabled
             >
-              <Text style={styles.drawerItemText}>My Products</Text>
+              <Text style={[styles.drawerItemText, { opacity: 0.5 }]}>My Products (Coming Soon)</Text>
             </Pressable>
           </View>
         </View>
@@ -182,7 +199,17 @@ const styles = StyleSheet.create({
     borderRadius: spacing.sm,
     borderWidth: 1,
     borderColor: colors.border,
-    overflow: "hidden"
+    overflow: "hidden",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2
+  },
+  productCardPressed: {
+    opacity: 0.7,
+    elevation: 5,
+    shadowOpacity: 0.15
   },
   productTitle: {
     fontSize: typography.sizes.sm,

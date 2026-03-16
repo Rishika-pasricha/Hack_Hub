@@ -500,10 +500,7 @@ export default function BlogsTab() {
                       }
                       if (item.productId) {
                         setNotificationsOpen(false);
-                        router.push({
-                          pathname: "/my-products",
-                          params: { focusProductId: item.productId }
-                        });
+                        // My Products feature - coming soon
                       } else if (item.type === "issue_completion") {
                         setNotificationsOpen(false);
                         router.push("/issues");

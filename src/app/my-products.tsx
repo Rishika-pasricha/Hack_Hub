@@ -1,109 +1,95 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Image,
   Modal,
-  Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View
 } from "react-native";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PrimaryButton } from "../components/ui/PrimaryButton";
 import { TextField } from "../components/ui/TextField";
 import { colors, spacing, typography } from "../constants/theme";
 import { useAuth } from "../context/AuthContext";
-import { deleteProduct, getMyProducts, updateProduct } from "../services/community";
+import { getMyProducts, deleteProduct, updateProduct } from "../services/community";
 import { Product } from "../types/community";
 import * as ImagePicker from "expo-image-picker";
 
-type EditForm = {
-  productName: string;
-  description: string;
-  price: string;
-  city: string;
-  productImageData: string;
-  imagePreviewUri: string;
-};
-
 export default function MyProductsScreen() {
   const router = useRouter();
-  const { focusProductId } = useLocalSearchParams<{ focusProductId?: string }>();
   const { user, isHydrated } = useAuth();
-  const listRef = useRef<FlatList<Product> | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [editForm, setEditForm] = useState<EditForm>({
+  const [editForm, setEditForm] = useState({
     productName: "",
     description: "",
     price: "",
     city: "",
-    productImageData: "",
-    imagePreviewUri: ""
+    imageUri: ""
   });
   const [saving, setSaving] = useState(false);
 
+  // Redirect if not authenticated
   useEffect(() => {
     if (isHydrated && !user) {
       router.replace("/login");
     }
   }, [isHydrated, user]);
 
-  const loadMyProducts = async () => {
-    if (!user?.email) {
-      return;
-    }
+  const loadProducts = useCallback(async () => {
+    if (!user?.email) return;
+
     try {
       setLoading(true);
       setMessage(null);
-      const data = await getMyProducts(user.email.toLowerCase());
-      setProducts(data);
-    } catch (err: any) {
-      setMessage(err.message || "Failed to load your products");
+      const data = await getMyProducts(user.email);
+      setProducts(data || []);
+    } catch (error: any) {
+      setMessage(error.message || "Failed to load products");
+      setProducts([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.email]);
 
+  // Load products when screen is focused
   useFocusEffect(
     useCallback(() => {
-      loadMyProducts();
-    }, [user?.email])
+      loadProducts();
+    }, [loadProducts])
   );
 
-  useEffect(() => {
-    if (!focusProductId || products.length === 0) {
-      return;
-    }
-    const targetIndex = products.findIndex((product) => product._id === String(focusProductId));
-    if (targetIndex >= 0) {
-      setTimeout(() => {
-        listRef.current?.scrollToIndex?.({ index: targetIndex, animated: true });
-      }, 120);
-    }
-  }, [focusProductId, products]);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadProducts();
+    setRefreshing(false);
+  };
 
   const startEdit = (product: Product) => {
+    const imageUrl = product.productMedia?.[0]?.mediaUrl || product.productImageUrl || "";
     setEditingProduct(product);
     setEditForm({
       productName: product.productName,
       description: product.description || "",
       price: String(product.price),
       city: product.city,
-      productImageData: "",
-      imagePreviewUri: product.productImageUrl
+      imageUri: imageUrl
     });
   };
 
-  const pickEditImageFromGallery = async () => {
+  const pickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      setMessage("Gallery permission is required");
+      setMessage("Photo library access required");
       return;
     }
 
@@ -114,36 +100,25 @@ export default function MyProductsScreen() {
       base64: true
     });
 
-    if (result.canceled || !result.assets?.[0]) {
-      return;
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      if (asset.base64) {
+        const mimeType = asset.mimeType || "image/jpeg";
+        const dataUrl = `data:${mimeType};base64,${asset.base64}`;
+        setEditForm((prev) => ({ ...prev, imageUri: dataUrl }));
+      }
     }
-
-    const asset = result.assets[0];
-    if (!asset.base64) {
-      setMessage("Could not read selected image");
-      return;
-    }
-
-    const mimeType = asset.mimeType || "image/jpeg";
-    const dataUrl = `data:${mimeType};base64,${asset.base64}`;
-    setEditForm((prev) => ({
-      ...prev,
-      productImageData: dataUrl,
-      imagePreviewUri: asset.uri
-    }));
   };
 
-  const handleSaveEdit = async () => {
-    if (!editingProduct || !user?.email) {
-      return;
-    }
-    if (!editForm.productName.trim() || !editForm.price.trim() || !editForm.city.trim()) {
-      setMessage("Product name, price, and city are required");
-      return;
-    }
-    const parsedPrice = Number(editForm.price);
-    if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
-      setMessage("Enter a valid positive price");
+  const saveEdit = async () => {
+    if (!editingProduct || !user?.email) return;
+
+    const name = editForm.productName.trim();
+    const price = Number(editForm.price);
+    const city = editForm.city.trim();
+
+    if (!name || !city || !Number.isFinite(price) || price <= 0) {
+      setMessage("Please fill all fields with valid values");
       return;
     }
 
@@ -151,44 +126,45 @@ export default function MyProductsScreen() {
       setSaving(true);
       setMessage(null);
       await updateProduct(editingProduct._id, {
-        sellerEmail: user.email.toLowerCase(),
-        productName: editForm.productName.trim(),
+        sellerEmail: user.email,
+        productName: name,
         description: editForm.description.trim() || undefined,
-        price: parsedPrice,
-        city: editForm.city.trim(),
-        productImageUrl: editForm.productImageData || undefined
+        price,
+        city,
+        productImageUrl: editForm.imageUri.startsWith("data:") ? editForm.imageUri : undefined
       });
       setEditingProduct(null);
-      await loadMyProducts();
+      await loadProducts();
       setMessage("Product updated successfully");
-    } catch (err: any) {
-      setMessage(err.message || "Failed to update product");
+    } catch (error: any) {
+      setMessage(error.message || "Failed to update product");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = (product: Product) => {
-    if (!user?.email) {
-      return;
-    }
-    Alert.alert("Delete Product", "Are you sure you want to delete this product?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            setMessage(null);
-            await deleteProduct(product._id, user.email.toLowerCase());
-            await loadMyProducts();
-            setMessage("Product deleted successfully");
-          } catch (err: any) {
-            setMessage(err.message || "Failed to delete product");
+  const confirmDelete = (product: Product) => {
+    Alert.alert(
+      "Delete Product",
+      `Are you sure you want to delete "${product.productName}"?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              if (!user?.email) return;
+              await deleteProduct(product._id, user.email);
+              await loadProducts();
+              setMessage("Product deleted successfully");
+            } catch (error: any) {
+              setMessage(error.message || "Failed to delete product");
+            }
           }
         }
-      }
-    ]);
+      ]
+    );
   };
 
   if (!isHydrated || !user) {
@@ -197,83 +173,142 @@ export default function MyProductsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>My Products</Text>
-          <Text style={styles.subtitle}>Manage products uploaded from your account.</Text>
-          <PrimaryButton label="Upload New Product" onPress={() => router.push("/upload-product")} />
-          {message ? <Text style={styles.info}>{message}</Text> : null}
-        </View>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.title}>My Products</Text>
+        <Text style={styles.subtitle}>Manage your marketplace listings</Text>
+        <PrimaryButton
+          label="Upload New Product"
+          onPress={() => router.push("/upload-product")}
+        />
+        {message && <Text style={styles.message}>{message}</Text>}
+      </View>
 
+      {/* Products List */}
+      {loading && !refreshing ? (
+        <View style={styles.centerContent}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading products...</Text>
+        </View>
+      ) : products.length === 0 ? (
+        <View style={styles.centerContent}>
+          <Text style={styles.emptyText}>No products yet</Text>
+          <Text style={styles.emptySubtext}>Start by uploading your first product</Text>
+        </View>
+      ) : (
         <FlatList
-          ref={(ref) => {
-            listRef.current = ref;
-          }}
           data={products}
           keyExtractor={(item) => item._id}
-          contentContainerStyle={styles.content}
-          refreshing={loading}
-          onRefresh={loadMyProducts}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>
-              {loading ? "Loading your products..." : "No products uploaded from this account yet."}
-            </Text>
-          }
           renderItem={({ item }) => (
-            <View style={[styles.card, String(focusProductId || "") === item._id ? styles.focusedCard : null]}>
-              <Image source={{ uri: item.productImageUrl }} style={styles.cardImage} resizeMode="cover" />
-              <Text style={styles.cardTitle}>{item.productName}</Text>
-              {item.description ? <Text style={styles.cardDescription}>{item.description}</Text> : null}
-              <Text style={styles.cardMeta}>Price: Rs. {item.price}</Text>
-              <Text style={styles.cardMeta}>City: {item.city}</Text>
-              <Text style={styles.cardMeta}>Reports: {item.reportCount || 0}/5</Text>
-              <View style={styles.actionsRow}>
-                <PrimaryButton label="Edit" onPress={() => startEdit(item)} />
-                <PrimaryButton label="Delete" onPress={() => handleDelete(item)} />
+            <View style={styles.productCard}>
+              <Image
+                source={{
+                  uri: item.productMedia?.[0]?.mediaUrl || item.productImageUrl || ""
+                }}
+                style={styles.productImage}
+              />
+              <View style={styles.productInfo}>
+                <Text style={styles.productName} numberOfLines={2}>
+                  {item.productName}
+                </Text>
+                {item.description && (
+                  <Text style={styles.productDesc} numberOfLines={2}>
+                    {item.description}
+                  </Text>
+                )}
+                <Text style={styles.productPrice}>Rs. {item.price}</Text>
+                <Text style={styles.productCity}>{item.city}</Text>
+                <View style={styles.buttonRow}>
+                  <PrimaryButton
+                    label="Edit"
+                    onPress={() => startEdit(item)}
+                  />
+                  <PrimaryButton
+                    label="Delete"
+                    onPress={() => confirmDelete(item)}
+                  />
+                </View>
               </View>
             </View>
           )}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.primary}
+            />
+          }
         />
+      )}
 
-        <Modal visible={!!editingProduct} transparent animationType="fade" onRequestClose={() => setEditingProduct(null)}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalCard}>
-              <ScrollView>
-                <Text style={styles.modalTitle}>Edit Product</Text>
-                <PrimaryButton label="Replace Product Image" onPress={pickEditImageFromGallery} />
-                {editForm.imagePreviewUri ? (
-                  <Image source={{ uri: editForm.imagePreviewUri }} style={styles.editPreview} resizeMode="cover" />
-                ) : null}
-                <TextField
-                  label="Product Name"
-                  value={editForm.productName}
-                  onChangeText={(value) => setEditForm((prev) => ({ ...prev, productName: value }))}
-                />
-                <TextField
-                  label="Description (Optional)"
-                  value={editForm.description}
-                  onChangeText={(value) => setEditForm((prev) => ({ ...prev, description: value }))}
-                />
-                <TextField
-                  label="Price"
-                  value={editForm.price}
-                  keyboardType="numeric"
-                  onChangeText={(value) => setEditForm((prev) => ({ ...prev, price: value }))}
-                />
-                <TextField
-                  label="City"
-                  value={editForm.city}
-                  onChangeText={(value) => setEditForm((prev) => ({ ...prev, city: value }))}
-                />
-                <View style={styles.modalActions}>
-                  <PrimaryButton label="Cancel" onPress={() => setEditingProduct(null)} disabled={saving} />
-                  <PrimaryButton label={saving ? "Saving..." : "Save Changes"} onPress={handleSaveEdit} disabled={saving} />
-                </View>
-              </ScrollView>
+      {/* Edit Modal */}
+      <Modal
+        visible={!!editingProduct}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditingProduct(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <ScrollView style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Edit Product</Text>
+
+            {editForm.imageUri && (
+              <Image
+                source={{ uri: editForm.imageUri }}
+                style={styles.previewImage}
+              />
+            )}
+
+            <PrimaryButton label="Change Image" onPress={pickImage} />
+
+            <TextField
+              label="Product Name"
+              value={editForm.productName}
+              onChangeText={(val) =>
+                setEditForm((p) => ({ ...p, productName: val }))
+              }
+            />
+
+            <TextField
+              label="Description (Optional)"
+              value={editForm.description}
+              onChangeText={(val) =>
+                setEditForm((p) => ({ ...p, description: val }))
+              }
+              placeholder="Add details..."
+            />
+
+            <TextField
+              label="Price (Rs.)"
+              value={editForm.price}
+              keyboardType="numeric"
+              onChangeText={(val) =>
+                setEditForm((p) => ({ ...p, price: val }))
+              }
+            />
+
+            <TextField
+              label="City"
+              value={editForm.city}
+              onChangeText={(val) => setEditForm((p) => ({ ...p, city: val }))}
+            />
+
+            <View style={styles.modalButtons}>
+              <PrimaryButton
+                label="Cancel"
+                onPress={() => setEditingProduct(null)}
+                disabled={saving}
+              />
+              <PrimaryButton
+                label={saving ? "Saving..." : "Save"}
+                onPress={saveEdit}
+                disabled={saving}
+              />
             </View>
-          </View>
-        </Modal>
-      </View>
+          </ScrollView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -285,9 +320,8 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
-    gap: spacing.sm
+    paddingVertical: spacing.lg,
+    gap: spacing.md
   },
   title: {
     fontSize: typography.sizes.xl,
@@ -298,88 +332,110 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.sm,
     color: colors.textSecondary
   },
-  info: {
+  message: {
     fontSize: typography.sizes.sm,
-    color: colors.primaryDark
+    color: colors.primary,
+    marginTop: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: spacing.sm
   },
-  content: {
+  centerContent: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: spacing.lg
+  },
+  loadingText: {
+    marginTop: spacing.md,
+    fontSize: typography.sizes.sm,
+    color: colors.textSecondary
+  },
+  emptyText: {
+    fontSize: typography.sizes.md,
+    fontWeight: "600",
+    color: colors.text,
+    marginBottom: spacing.sm
+  },
+  emptySubtext: {
+    fontSize: typography.sizes.sm,
+    color: colors.textSecondary
+  },
+  listContent: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xxl,
     gap: spacing.md
   },
-  emptyText: {
-    fontSize: typography.sizes.sm,
-    color: colors.textSecondary
-  },
-  card: {
+  productCard: {
+    flexDirection: "row",
     backgroundColor: colors.surface,
+    borderRadius: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: spacing.sm,
+    overflow: "hidden"
+  },
+  productImage: {
+    width: 100,
+    height: 120,
+    backgroundColor: colors.background
+  },
+  productInfo: {
+    flex: 1,
     padding: spacing.md,
     gap: spacing.xs
   },
-  focusedCard: {
-    borderColor: "#2D6A4F",
-    borderWidth: 2
-  },
-  cardImage: {
-    width: "100%",
-    height: 140,
-    borderRadius: spacing.xs,
-    backgroundColor: colors.background,
-    marginBottom: spacing.xs
-  },
-  cardTitle: {
-    fontSize: typography.sizes.md,
-    fontWeight: "700",
+  productName: {
+    fontSize: typography.sizes.sm,
+    fontWeight: "600",
     color: colors.text
   },
-  cardDescription: {
-    fontSize: typography.sizes.sm,
-    color: colors.text
-  },
-  cardMeta: {
-    fontSize: typography.sizes.sm,
+  productDesc: {
+    fontSize: typography.sizes.xs,
     color: colors.textSecondary
   },
-  actionsRow: {
+  productPrice: {
+    fontSize: typography.sizes.sm,
+    fontWeight: "700",
+    color: colors.primary
+  },
+  productCity: {
+    fontSize: typography.sizes.xs,
+    color: colors.textSecondary
+  },
+  buttonRow: {
     marginTop: spacing.sm,
     flexDirection: "row",
-    justifyContent: "space-between",
-    gap: spacing.sm
+    gap: spacing.xs
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: spacing.lg
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center"
   },
-  modalCard: {
-    width: "100%",
-    maxHeight: "85%",
+  modalContent: {
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: spacing.md,
-    padding: spacing.lg
+    marginHorizontal: spacing.lg,
+    marginVertical: spacing.xl,
+    borderRadius: spacing.lg,
+    padding: spacing.lg,
+    maxHeight: "80%"
   },
   modalTitle: {
     fontSize: typography.sizes.lg,
     fontWeight: "700",
     color: colors.text,
-    marginBottom: spacing.sm
+    marginBottom: spacing.lg
   },
-  editPreview: {
+  previewImage: {
     width: "100%",
-    height: 160,
-    borderRadius: spacing.sm,
-    backgroundColor: colors.background,
-    marginBottom: spacing.sm
+    height: 200,
+    borderRadius: spacing.md,
+    marginBottom: spacing.md,
+    backgroundColor: colors.background
   },
-  modalActions: {
-    marginTop: spacing.sm,
-    gap: spacing.sm
+  modalButtons: {
+    flexDirection: "row",
+    gap: spacing.md,
+    marginTop: spacing.lg
   }
 });

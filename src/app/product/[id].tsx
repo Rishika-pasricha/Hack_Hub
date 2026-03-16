@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect } from "react";
+import { useState, useLayoutEffect, useCallback, useEffect } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -16,7 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { colors, spacing, typography, radii } from "../../constants/theme";
 import { Product } from "../../types/community";
-import { reportProduct } from "../../services/community";
+import { reportProduct, getProducts } from "../../services/community";
 import { useAuth } from "../../context/AuthContext";
 import { PrimaryButton } from "../../components/ui/PrimaryButton";
 
@@ -29,23 +29,77 @@ const reasonOptions: { label: string; value: ReportReason }[] = [
   { label: "Scam", value: "scam" }
 ];
 
+// Cache for products to avoid refetching on every navigation
+let productsCache: Product[] = [];
+let cacheTimestamp = 0;
+const CACHE_DURATION = 60000; // 1 minute
+
+function isCacheValid() {
+  return Date.now() - cacheTimestamp < CACHE_DURATION;
+}
+
 export default function ProductDetailScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const { user } = useAuth();
   const params = useLocalSearchParams();
+  const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [selectedReason, setSelectedReason] = useState<ReportReason | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  let product: Product | null = null;
-  try {
-    product = params.product ? JSON.parse(params.product as string) : null;
-  } catch (err) {
-    product = null;
-  }
+  const productId = params.id as string;
+
+  // Define ALL hooks FIRST - before any early returns
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      title: "Product Details",
+      headerBackTitle: ""
+    });
+  }, [navigation]);
+
+  // Fetch product by ID
+  useEffect(() => {
+    if (!productId) {
+      setLoading(false);
+      return;
+    }
+
+    const fetchProduct = async () => {
+      try {
+        setLoading(true);
+        
+        // Check if product is already in cache
+        if (isCacheValid()) {
+          const found = productsCache.find(p => p._id === productId);
+          if (found) {
+            setProduct(found);
+            setLoading(false);
+            return;
+          }
+        }
+        
+        // Fetch all products
+        const products = await getProducts();
+        productsCache = products;
+        cacheTimestamp = Date.now();
+        
+        const found = products.find(p => p._id === productId);
+        setProduct(found || null);
+      } catch (err) {
+        console.error("Failed to fetch product:", err);
+        setProduct(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProduct();
+  }, [productId]);
 
   const media = product?.productMedia && product.productMedia.length > 0 
     ? product.productMedia 
@@ -55,18 +109,77 @@ export default function ProductDetailScreen() {
 
   const currentMedia = media[currentMediaIndex];
   
-  // Always call useVideoPlayer in the same order (unconditionally)
+  // Call useVideoPlayer directly at top level (never conditionally)
   const videoPlayer = useVideoPlayer(currentMedia?.mediaUrl || "", player => {
     player.loop = false;
   });
 
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerShown: true,
-      title: "Product Details",
-      headerBackTitle: ""
-    });
-  }, [navigation]);
+  const handleNextMedia = useCallback(() => {
+    setCurrentMediaIndex(prev => Math.min(prev + 1, media.length - 1));
+  }, [media.length]);
+
+  const handlePrevMedia = useCallback(() => {
+    setCurrentMediaIndex(prev => Math.max(prev - 1, 0));
+  }, []);
+
+  const handleEnquire = useCallback(async () => {
+    if (!user?.email) {
+      Alert.alert("Error", "Please log in to enquire");
+      return;
+    }
+
+    const email = product?.sellerEmail;
+    const subject = `Enquiry about ${product?.productName}`;
+    const body = `Hi ${product?.sellerName},\n\nI'm interested in your product "${product?.productName}" priced at Rs. ${product?.price}.\n\nPlease let me know more details.\n\nThanks,\n${user.email}`;
+    
+    const mailto = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    
+    try {
+      await Linking.openURL(mailto);
+    } catch (err) {
+      Alert.alert("Error", "Could not open email app");
+    }
+  }, [product, user]);
+
+  const handleReport = useCallback(async () => {
+    if (!user?.email) {
+      Alert.alert("Error", "Please log in to report");
+      return;
+    }
+
+    if (!selectedReason) {
+      Alert.alert("Error", "Please select a reason");
+      return;
+    }
+
+    try {
+      setReportLoading(true);
+      const response = await reportProduct(product?._id || "", user.email, selectedReason);
+      setMessage(response.message);
+      setReportModalVisible(false);
+      setSelectedReason(null);
+      
+      Alert.alert("Success", response.message, [
+        { text: "OK", onPress: () => router.back() }
+      ]);
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to report product");
+    } finally {
+      setReportLoading(false);
+    }
+  }, [product, user, selectedReason, router]);
+
+  // NOW do the early returns after all hooks
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading product...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!product) {
     return (
@@ -81,65 +194,6 @@ export default function ProductDetailScreen() {
     );
   }
 
-  const handleNextMedia = () => {
-    if (currentMediaIndex < media.length - 1) {
-      setCurrentMediaIndex(currentMediaIndex + 1);
-    }
-  };
-
-  const handlePrevMedia = () => {
-    if (currentMediaIndex > 0) {
-      setCurrentMediaIndex(currentMediaIndex - 1);
-    }
-  };
-
-  const handleEnquire = async () => {
-    if (!user?.email) {
-      Alert.alert("Error", "Please log in to enquire");
-      return;
-    }
-
-    const email = product.sellerEmail;
-    const subject = `Enquiry about ${product.productName}`;
-    const body = `Hi ${product.sellerName},\n\nI'm interested in your product "${product.productName}" priced at Rs. ${product.price}.\n\nPlease let me know more details.\n\nThanks,\n${user.email}`;
-    
-    const mailto = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    
-    try {
-      await Linking.openURL(mailto);
-    } catch (err) {
-      Alert.alert("Error", "Could not open email app");
-    }
-  };
-
-  const handleReport = async () => {
-    if (!user?.email) {
-      Alert.alert("Error", "Please log in to report");
-      return;
-    }
-
-    if (!selectedReason) {
-      Alert.alert("Error", "Please select a reason");
-      return;
-    }
-
-    try {
-      setReportLoading(true);
-      const response = await reportProduct(product._id, user.email, selectedReason);
-      setMessage(response.message);
-      setReportModalVisible(false);
-      setSelectedReason(null);
-      
-      Alert.alert("Success", response.message, [
-        { text: "OK", onPress: () => router.back() }
-      ]);
-    } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to report product");
-    } finally {
-      setReportLoading(false);
-    }
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
@@ -153,7 +207,7 @@ export default function ProductDetailScreen() {
                   style={styles.media}
                   resizeMode="cover"
                 />
-              ) : currentMedia.mediaType === "video" ? (
+              ) : currentMedia.mediaType === "video" && currentMedia.mediaUrl ? (
                 <VideoView
                   player={videoPlayer}
                   style={styles.media}
@@ -320,6 +374,11 @@ const styles = StyleSheet.create({
     fontSize: typography.body,
     color: colors.text,
     marginBottom: spacing.lg
+  },
+  loadingText: {
+    fontSize: typography.body,
+    color: colors.text,
+    marginTop: spacing.lg
   },
   backButton: {
     paddingVertical: spacing.sm

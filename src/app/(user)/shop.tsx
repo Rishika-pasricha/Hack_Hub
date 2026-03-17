@@ -137,11 +137,10 @@ export default function ShopTab() {
               style={styles.drawerItem}
               onPress={() => {
                 setDrawerOpen(false);
-                // My Products - coming soon
+                router.push("/my-products");
               }}
-              disabled
             >
-              <Text style={[styles.drawerItemText, { opacity: 0.5 }]}>My Products (Coming Soon)</Text>
+              <Text style={styles.drawerItemText}>My Products</Text>
             </Pressable>
           </View>
         </View>

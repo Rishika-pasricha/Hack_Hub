@@ -167,7 +167,13 @@ export function getProducts() {
 }
 
 export function getMyProducts(sellerEmail: string) {
-  return apiRequest<Product[]>(`/products/my?sellerEmail=${encodeURIComponent(sellerEmail)}`);
+  const normalizedEmail = sellerEmail.trim().toLowerCase();
+  return apiRequest<Product[]>(`/products/my?sellerEmail=${encodeURIComponent(normalizedEmail)}`)
+    .catch(async () => {
+      // Backward-compatible fallback for backends that do not expose /products/my.
+      const allProducts = await getProducts();
+      return allProducts.filter((product) => product.sellerEmail?.toLowerCase() === normalizedEmail);
+    });
 }
 
 export function submitProduct(payload: {

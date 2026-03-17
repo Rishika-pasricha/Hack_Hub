@@ -12,6 +12,7 @@ export default function RootLayout() {
         <Stack.Screen name="admin-dashboard" options={{ headerShown: false }} />
         <Stack.Screen name="submit-issue" options={{ headerShown: true, title: "Submit Civic Issue" }} />
         <Stack.Screen name="upload-product" options={{ headerShown: true, title: "Upload Product" }} />
+        <Stack.Screen name="my-products" options={{ headerShown: true, title: "My Products" }} />
         <Stack.Screen name="my-posts" options={{ headerShown: true, title: "My Posts" }} />
         <Stack.Screen name="profile-settings" options={{ headerShown: true, title: "Settings" }} />
         <Stack.Screen name="forgot-password" options={{ headerShown: true, title: "Forgot Password" }} />

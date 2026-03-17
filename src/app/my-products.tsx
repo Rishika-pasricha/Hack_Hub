@@ -19,7 +19,6 @@ import { colors, spacing, typography } from "../constants/theme";
 import { useAuth } from "../context/AuthContext";
 import { getMyProducts, deleteProduct, updateProduct } from "../services/community";
 import { Product } from "../types/community";
-import * as ImagePicker from "expo-image-picker";
 
 export default function MyProductsScreen() {
   const router = useRouter();
@@ -33,8 +32,7 @@ export default function MyProductsScreen() {
     productName: "",
     description: "",
     price: "",
-    city: "",
-    imageUri: ""
+    city: ""
   });
   const [saving, setSaving] = useState(false);
 
@@ -46,7 +44,12 @@ export default function MyProductsScreen() {
   }, [isHydrated, user]);
 
   const loadProducts = useCallback(async () => {
-    if (!user?.email) return;
+    if (!user?.email) {
+      setLoading(false);
+      setProducts([]);
+      setMessage("Account email not found. Please log in again.");
+      return;
+    }
 
     try {
       setLoading(true);
@@ -75,39 +78,13 @@ export default function MyProductsScreen() {
   };
 
   const startEdit = (product: Product) => {
-    const imageUrl = product.productMedia?.[0]?.mediaUrl || product.productImageUrl || "";
     setEditingProduct(product);
     setEditForm({
       productName: product.productName,
       description: product.description || "",
       price: String(product.price),
-      city: product.city,
-      imageUri: imageUrl
+      city: product.city
     });
-  };
-
-  const pickImage = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      setMessage("Photo library access required");
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      quality: 0.7,
-      base64: true
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      if (asset.base64) {
-        const mimeType = asset.mimeType || "image/jpeg";
-        const dataUrl = `data:${mimeType};base64,${asset.base64}`;
-        setEditForm((prev) => ({ ...prev, imageUri: dataUrl }));
-      }
-    }
   };
 
   const saveEdit = async () => {
@@ -130,8 +107,7 @@ export default function MyProductsScreen() {
         productName: name,
         description: editForm.description.trim() || undefined,
         price,
-        city,
-        productImageUrl: editForm.imageUri.startsWith("data:") ? editForm.imageUri : undefined
+        city
       });
       setEditingProduct(null);
       await loadProducts();
@@ -252,15 +228,6 @@ export default function MyProductsScreen() {
         <View style={styles.modalOverlay}>
           <ScrollView style={styles.modalContent}>
             <Text style={styles.modalTitle}>Edit Product</Text>
-
-            {editForm.imageUri && (
-              <Image
-                source={{ uri: editForm.imageUri }}
-                style={styles.previewImage}
-              />
-            )}
-
-            <PrimaryButton label="Change Image" onPress={pickImage} />
 
             <TextField
               label="Product Name"
@@ -425,13 +392,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.text,
     marginBottom: spacing.lg
-  },
-  previewImage: {
-    width: "100%",
-    height: 200,
-    borderRadius: spacing.md,
-    marginBottom: spacing.md,
-    backgroundColor: colors.background
   },
   modalButtons: {
     flexDirection: "row",

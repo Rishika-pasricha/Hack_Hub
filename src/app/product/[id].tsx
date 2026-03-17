@@ -70,29 +70,29 @@ export default function ProductDetailScreen() {
     }
 
     const fetchProduct = async () => {
+      let cachedProduct: Product | null = null;
       try {
         setLoading(true);
         
-        // Check if product is already in cache
+        // Show cached product instantly if available, then refresh from API.
         if (isCacheValid()) {
-          const found = productsCache.find(p => p._id === productId);
-          if (found) {
-            setProduct(found);
+          cachedProduct = productsCache.find(p => p._id === productId) || null;
+          if (cachedProduct) {
+            setProduct(cachedProduct);
             setLoading(false);
-            return;
           }
         }
         
-        // Fetch all products
+        // Always fetch latest products to avoid stale details after edits.
         const products = await getProducts();
         productsCache = products;
         cacheTimestamp = Date.now();
         
         const found = products.find(p => p._id === productId);
-        setProduct(found || null);
+        setProduct(found || cachedProduct || null);
       } catch (err) {
         console.error("Failed to fetch product:", err);
-        setProduct(null);
+        setProduct(cachedProduct || null);
       } finally {
         setLoading(false);
       }

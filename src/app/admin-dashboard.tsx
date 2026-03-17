@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { StyleSheet, Text, View, ScrollView, Image, TouchableOpacity } from "react-native";
+import { StyleSheet, Text, View, ScrollView, Image, TouchableOpacity, Modal, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { VideoView, useVideoPlayer } from "expo-video";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { PrimaryButton } from "../components/ui/PrimaryButton";
 import { colors, spacing, typography } from "../constants/theme";
 import {
@@ -69,6 +71,15 @@ type PieSlice = {
   label: string;
   value: number;
   color: string;
+};
+
+type AdminNotification = {
+  id: string;
+  type: "issue" | "content";
+  title: string;
+  message: string;
+  createdAt: string;
+  targetTab: DashboardTab;
 };
 
 function IssueMediaVideo({ uri }: IssueMediaVideoProps) {
@@ -200,9 +211,43 @@ export default function AdminDashboard() {
   const [message, setMessage] = useState<string | null>(null);
   const [processingIssueId, setProcessingIssueId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<DashboardTab>("analytics");
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [lastSeenAt, setLastSeenAt] = useState<string | null>(null);
   const weeklyIssueTrend = analytics?.weeklyIssueTrend || [];
   const issueWeekdayDistribution = analytics?.issueWeekdayDistribution || [];
   const topIssueContributors = analytics?.topIssueContributors || [];
+  const normalizedMunicipalityEmail = municipalityEmail.trim().toLowerCase();
+  const notificationStorageKey = normalizedMunicipalityEmail
+    ? `admin_notifications_last_seen_${normalizedMunicipalityEmail}`
+    : "";
+  const toTime = (value: string) => {
+    const parsed = new Date(value).getTime();
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  const adminNotifications: AdminNotification[] = [
+    ...issues.map((issue) => ({
+      id: `issue-${issue._id}`,
+      type: "issue" as const,
+      title: issue.subject,
+      message: `New issue from ${issue.userName}`,
+      createdAt: issue.createdAt,
+      targetTab: "issues" as const
+    })),
+    ...pendingBlogs.map((blog) => ({
+      id: `content-${blog._id}`,
+      type: "content" as const,
+      title: blog.title,
+      message: `New content submitted by ${blog.authorName}`,
+      createdAt: blog.createdAt,
+      targetTab: "content" as const
+    }))
+  ].sort((a, b) => toTime(b.createdAt) - toTime(a.createdAt));
+  const unreadNotificationsCount = adminNotifications.filter((item) => {
+    if (!lastSeenAt) {
+      return true;
+    }
+    return toTime(item.createdAt) > toTime(lastSeenAt);
+  }).length;
 
   const resolutionRate = analytics
     ? clampPercent((analytics.resolvedIssues / Math.max(analytics.totalIssues, 1)) * 100)
@@ -233,6 +278,20 @@ export default function AdminDashboard() {
   const handleLogout = () => {
     logout();
     router.replace("/login");
+  };
+
+  const openNotifications = async () => {
+    setNotificationsOpen(true);
+    if (!notificationStorageKey) {
+      return;
+    }
+    const nowIso = new Date().toISOString();
+    setLastSeenAt(nowIso);
+    try {
+      await AsyncStorage.setItem(notificationStorageKey, nowIso);
+    } catch {
+      // Ignore persistence failures; badge will still work in-memory.
+    }
   };
 
   const loadData = async () => {
@@ -303,6 +362,34 @@ export default function AdminDashboard() {
     loadData();
   }, [user, isHydrated]);
 
+  useEffect(() => {
+    if (!notificationStorageKey) {
+      setLastSeenAt(null);
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadLastSeen = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(notificationStorageKey);
+        if (isMounted) {
+          setLastSeenAt(stored || null);
+        }
+      } catch {
+        if (isMounted) {
+          setLastSeenAt(null);
+        }
+      }
+    };
+
+    loadLastSeen();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [notificationStorageKey]);
+
   if (!isHydrated || !user || user.role !== "admin") {
     return null;
   }
@@ -311,8 +398,22 @@ export default function AdminDashboard() {
     <SafeAreaView style={styles.container}>
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Municipality Admin Dashboard</Text>
-        <Text style={styles.subtitle}>Track civic activity, issues, and approval queue</Text>
+        <View style={styles.headerTopRow}>
+          <View style={styles.headerTitleWrap}>
+            <Text style={styles.title}>Municipality Admin Dashboard</Text>
+            <Text style={styles.subtitle}>Track civic activity, issues, and approval queue</Text>
+          </View>
+          <TouchableOpacity style={styles.notificationButton} onPress={openNotifications}>
+            <Ionicons name="notifications-outline" size={20} color={colors.text} />
+            {unreadNotificationsCount > 0 ? (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>
+                  {unreadNotificationsCount > 9 ? "9+" : String(unreadNotificationsCount)}
+                </Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.content}>
@@ -758,6 +859,32 @@ export default function AdminDashboard() {
       <View style={styles.footer}>
         <PrimaryButton label="Logout" onPress={handleLogout} />
       </View>
+
+      <Modal visible={notificationsOpen} transparent animationType="fade" onRequestClose={() => setNotificationsOpen(false)}>
+        <Pressable style={styles.notificationBackdrop} onPress={() => setNotificationsOpen(false)}>
+          <View style={styles.notificationsCard}>
+            <Text style={styles.notificationsTitle}>Admin Notifications</Text>
+            {adminNotifications.length === 0 ? <Text style={styles.notificationsMeta}>No new submissions yet</Text> : null}
+            {adminNotifications.slice(0, 20).map((item) => {
+              const isUnread = !lastSeenAt || toTime(item.createdAt) > toTime(lastSeenAt);
+              return (
+                <Pressable
+                  key={item.id}
+                  style={[styles.notificationItem, isUnread ? styles.notificationItemUnread : styles.notificationItemRead]}
+                  onPress={() => {
+                    setNotificationsOpen(false);
+                    setActiveTab(item.targetTab);
+                  }}
+                >
+                  <Text style={styles.notificationItemType}>{item.type === "issue" ? "Issue" : "Content"}</Text>
+                  <Text style={styles.notificationItemTitle}>{item.title}</Text>
+                  <Text style={styles.notificationItemText}>{item.message}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Pressable>
+      </Modal>
     </ScrollView>
     </SafeAreaView>
   );
@@ -775,16 +902,53 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     alignItems: "center"
   },
+  headerTopRow: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.md
+  },
+  headerTitleWrap: {
+    flex: 1
+  },
   title: {
     fontSize: typography.sizes.xl,
     fontWeight: "bold",
     color: colors.text,
-    textAlign: "center"
+    textAlign: "left"
   },
   subtitle: {
     fontSize: typography.sizes.md,
     color: colors.textSecondary,
     marginTop: spacing.sm
+  },
+  notificationButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#E5484D",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4
+  },
+  notificationBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "700"
   },
   content: {
     padding: spacing.xl,
@@ -1190,5 +1354,61 @@ const styles = StyleSheet.create({
   },
   footer: {
     padding: spacing.xl
+  },
+  notificationBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.16)"
+  },
+  notificationsCard: {
+    position: "absolute",
+    top: 90,
+    right: spacing.xl,
+    backgroundColor: colors.surface,
+    borderRadius: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    minWidth: 260,
+    maxWidth: 340,
+    maxHeight: 420,
+    padding: spacing.md,
+    gap: spacing.sm
+  },
+  notificationsTitle: {
+    fontSize: typography.sizes.md,
+    fontWeight: "700",
+    color: colors.text
+  },
+  notificationsMeta: {
+    fontSize: typography.sizes.xs,
+    color: colors.textSecondary
+  },
+  notificationItem: {
+    borderRadius: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    gap: 2
+  },
+  notificationItemUnread: {
+    backgroundColor: colors.background
+  },
+  notificationItemRead: {
+    backgroundColor: colors.surface
+  },
+  notificationItemType: {
+    fontSize: 10,
+    color: colors.primary,
+    fontWeight: "700",
+    textTransform: "uppercase"
+  },
+  notificationItemTitle: {
+    fontSize: typography.sizes.sm,
+    color: colors.text,
+    fontWeight: "700"
+  },
+  notificationItemText: {
+    fontSize: typography.sizes.xs,
+    color: colors.textSecondary
   }
 });

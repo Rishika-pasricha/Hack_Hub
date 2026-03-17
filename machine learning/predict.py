@@ -41,9 +41,9 @@ def predict_image(img_path):
 
         # Class mapping
         if prediction > 0.5:
-            label = "NON-RECYCLABLE (Food Waste/Other Trash)"
+            label = "biodegradable (Food Waste/Other Trash)"
         else:
-            label = "RECYCLABLE (Plastic/Paper/Metal)"
+            label = "non - biodegradable (Plastic/Paper/Metal)"
 
         print("\n============================")
         print(f"📷 Image: {img_path}")

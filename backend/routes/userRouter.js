@@ -774,23 +774,33 @@ router.get('/municipality/activity-analytics', async (req, res) => {
             return res.status(404).json({ error: 'Municipality not found' });
         }
 
-        // Get current date and 30 days ago
         const now = new Date();
         const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const toDateKey = (value) => {
+            const date = new Date(value);
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        };
+        const last7DaysKeys = Array.from({ length: 7 }, (_, index) => {
+            const date = new Date(now);
+            date.setDate(now.getDate() - (6 - index));
+            return toDateKey(date);
+        });
 
-        // Total issues for this municipality
         const totalIssues = await Issue.countDocuments({ municipalityEmail });
         const resolvedIssues = await Issue.countDocuments({ municipalityEmail, status: 'resolved' });
         const openIssues = totalIssues - resolvedIssues;
 
-        // Issues resolved in the last 30 days
         const resolvedThisMonth = await Issue.countDocuments({
             municipalityEmail,
             status: 'resolved',
             updatedAt: { $gte: thirtyDaysAgo }
         });
 
-        // Average resolution time in days
         let avgResolutionTime = 0;
         if (resolvedIssues > 0) {
             const resolvedIssuesData = await Issue.find(
@@ -801,24 +811,138 @@ router.get('/municipality/activity-analytics', async (req, res) => {
                 const days = (new Date(issue.updatedAt) - new Date(issue.createdAt)) / (1000 * 60 * 60 * 24);
                 return sum + days;
             }, 0);
-            avgResolutionTime = (totalTime / resolvedIssues).toFixed(1);
+            avgResolutionTime = Number((totalTime / resolvedIssues).toFixed(1));
         }
 
-        // Count unique citizens reporting issues
         const activeCitizens = await Issue.distinct('userEmail', { municipalityEmail });
+        const activeCitizensCount = activeCitizens.length;
 
-        // Blogs approved in the last 30 days
+        const issuesThisMonth = await Issue.find(
+            { municipalityEmail, createdAt: { $gte: thirtyDaysAgo } },
+            { userEmail: 1, userName: 1, media: 1, createdAt: 1 }
+        ).lean();
+
+        const issueContributions = new Map();
+        const issueDayCounter = new Map();
+        const issueHourCounter = Array.from({ length: 24 }, () => 0);
+        let issuesWithMediaCount = 0;
+        let issuesWithVideoCount = 0;
+
+        issuesThisMonth.forEach((issue) => {
+            const email = String(issue.userEmail || '').toLowerCase();
+            const name = String(issue.userName || '').trim() || email || 'Citizen';
+            const mediaItems = Array.isArray(issue.media) ? issue.media : [];
+            const hasMedia = mediaItems.length > 0;
+            const hasVideo = mediaItems.some((item) => String(item?.mediaType || '').toLowerCase() === 'video');
+
+            if (hasMedia) {
+                issuesWithMediaCount += 1;
+            }
+            if (hasVideo) {
+                issuesWithVideoCount += 1;
+            }
+
+            if (email) {
+                const previous = issueContributions.get(email) || {
+                    userEmail: email,
+                    userName: name,
+                    issueCount: 0,
+                    lastSubmittedAt: issue.createdAt
+                };
+                previous.issueCount += 1;
+                if (new Date(issue.createdAt) > new Date(previous.lastSubmittedAt)) {
+                    previous.lastSubmittedAt = issue.createdAt;
+                }
+                issueContributions.set(email, previous);
+            }
+
+            const createdAt = new Date(issue.createdAt);
+            const dayKey = toDateKey(createdAt);
+            issueDayCounter.set(dayKey, (issueDayCounter.get(dayKey) || 0) + 1);
+            const hour = createdAt.getHours();
+            issueHourCounter[hour] += 1;
+        });
+
+        const activeCitizenContributors = Array.from(issueContributions.values());
+        const repeatContributors = activeCitizenContributors.filter((item) => item.issueCount > 1).length;
+        const repeatReporterRate = activeCitizenContributors.length
+            ? Number(((repeatContributors / activeCitizenContributors.length) * 100).toFixed(1))
+            : 0;
+        const avgIssuesPerCitizen = activeCitizenContributors.length
+            ? Number((issuesThisMonth.length / activeCitizenContributors.length).toFixed(1))
+            : 0;
+
+        const topIssueContributors = activeCitizenContributors
+            .sort((a, b) => b.issueCount - a.issueCount)
+            .slice(0, 5);
+
+        const weeklyIssueTrend = last7DaysKeys.map((dateKey) => ({
+            date: dateKey,
+            count: issueDayCounter.get(dateKey) || 0
+        }));
+
+        let peakReportingHour = 0;
+        let peakHourCount = 0;
+        issueHourCounter.forEach((count, hour) => {
+            if (count > peakHourCount) {
+                peakHourCount = count;
+                peakReportingHour = hour;
+            }
+        });
+
+        const issueWeekdayCounts = dayNames.map((dayName, index) => ({
+            day: dayName,
+            count: 0,
+            dayIndex: index
+        }));
+        issuesThisMonth.forEach((issue) => {
+            const dayIndex = new Date(issue.createdAt).getDay();
+            issueWeekdayCounts[dayIndex].count += 1;
+        });
+
+        let peakReportingDay = 'N/A';
+        if (issuesThisMonth.length > 0) {
+            peakReportingDay = issueWeekdayCounts
+                .slice()
+                .sort((a, b) => b.count - a.count)[0]?.day || 'N/A';
+        }
+
+        const issueMediaAdoptionRate = issuesThisMonth.length
+            ? Number(((issuesWithMediaCount / issuesThisMonth.length) * 100).toFixed(1))
+            : 0;
+        const videoEvidenceRate = issuesThisMonth.length
+            ? Number(((issuesWithVideoCount / issuesThisMonth.length) * 100).toFixed(1))
+            : 0;
+
         const approvedBlogsThisMonth = await BlogPost.countDocuments({
             municipalityEmail,
-            approved: true,
+            status: 'approved',
+            approvedAt: { $gte: thirtyDaysAgo }
+        });
+
+        const blogsSubmittedThisMonth = await BlogPost.countDocuments({
+            municipalityEmail,
             createdAt: { $gte: thirtyDaysAgo }
         });
 
-        // Products listed in the last 30 days for this municipality's area
         const productsThisMonth = await Product.countDocuments({
-            city: municipality.municipalityName,
+            city: { $regex: `^${escapeRegex(municipality.municipalityName)}$`, $options: 'i' },
             createdAt: { $gte: thirtyDaysAgo }
         });
+
+        const issuesInLast7Days = await Issue.countDocuments({
+            municipalityEmail,
+            createdAt: { $gte: sevenDaysAgo }
+        });
+
+        const issuesInPrevious7Days = await Issue.countDocuments({
+            municipalityEmail,
+            createdAt: { $gte: new Date(sevenDaysAgo.getTime() - 7 * 24 * 60 * 60 * 1000), $lt: sevenDaysAgo }
+        });
+
+        const weekOverWeekIssueTrend = issuesInPrevious7Days === 0
+            ? (issuesInLast7Days > 0 ? 100 : 0)
+            : Number((((issuesInLast7Days - issuesInPrevious7Days) / issuesInPrevious7Days) * 100).toFixed(1));
 
         return res.status(200).json({
             municipalityName: municipality.municipalityName,
@@ -828,9 +952,21 @@ router.get('/municipality/activity-analytics', async (req, res) => {
             openIssues,
             resolvedThisMonth,
             avgResolutionTime,
-            activeCitizensCount: activeCitizens.length,
+            activeCitizensCount,
             approvedBlogsThisMonth,
-            productsListedThisMonth: productsThisMonth
+            blogsSubmittedThisMonth,
+            productsListedThisMonth: productsThisMonth,
+            issuesSubmittedThisMonth: issuesThisMonth.length,
+            repeatReporterRate,
+            avgIssuesPerCitizen,
+            issueMediaAdoptionRate,
+            videoEvidenceRate,
+            peakReportingHour,
+            peakReportingDay,
+            weekOverWeekIssueTrend,
+            weeklyIssueTrend,
+            issueWeekdayDistribution: issueWeekdayCounts.map(({ day, count }) => ({ day, count })),
+            topIssueContributors
         });
     } catch (err) {
         return res.status(500).json({ error: 'Failed to load activity analytics' });

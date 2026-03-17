@@ -236,6 +236,29 @@ export function getMunicipalityActivityMetrics(municipalityEmail: string) {
     avgResolutionTime: number;
     activeCitizensCount: number;
     approvedBlogsThisMonth: number;
+    blogsSubmittedThisMonth: number;
     productsListedThisMonth: number;
+    issuesSubmittedThisMonth: number;
+    repeatReporterRate: number;
+    avgIssuesPerCitizen: number;
+    issueMediaAdoptionRate: number;
+    videoEvidenceRate: number;
+    peakReportingHour: number;
+    peakReportingDay: string;
+    weekOverWeekIssueTrend: number;
+    weeklyIssueTrend: Array<{
+      date: string;
+      count: number;
+    }>;
+    issueWeekdayDistribution: Array<{
+      day: string;
+      count: number;
+    }>;
+    topIssueContributors: Array<{
+      userEmail: string;
+      userName: string;
+      issueCount: number;
+      lastSubmittedAt: string;
+    }>;
   }>(`/municipality/activity-analytics?municipalityEmail=${encodeURIComponent(municipalityEmail)}`);
 }

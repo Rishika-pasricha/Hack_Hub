@@ -1,7 +1,23 @@
-import { Stack } from 'expo-router';
+import { useEffect } from "react";
+import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import { AuthProvider } from "../context/AuthContext";
 
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // Ignore if splash is already controlled elsewhere.
+});
+
 export default function RootLayout() {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      SplashScreen.hideAsync().catch(() => {
+        // Ignore hide errors to avoid blocking app startup.
+      });
+    }, 4000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <AuthProvider>
       <Stack>

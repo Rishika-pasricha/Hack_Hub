@@ -124,6 +124,7 @@ export default function BlogsTab() {
   const viewportHeightRef = useRef(0);
   const videoLayoutRef = useRef<Record<string, { y: number; height: number }>>({});
   const manuallyPausedVideoKeyRef = useRef<string | null>(null);
+  const unreadNotificationsCount = notifications.filter((n) => n.read === false).length;
 
   const greetingName = useMemo(() => {
     if (!user) {
@@ -202,7 +203,11 @@ export default function BlogsTab() {
       ]);
       
       const combinedNotifications = [
-        ...likeNotifications,
+        ...likeNotifications.map((notification) => ({
+          ...notification,
+          // Like notifications currently have no read/unread API state.
+          read: true
+        })),
         ...issueNotifications.map((issue: any) => ({
           id: `issue-${issue.issueId}`,
           type: "issue_completion" as const,
@@ -368,9 +373,11 @@ export default function BlogsTab() {
             }}
           >
             <Ionicons name="notifications-outline" size={20} color={colors.text} />
-            {notifications.filter((n) => !n.read).length > 0 ? (
+            {unreadNotificationsCount > 0 ? (
               <View style={styles.notificationBadge}>
-                <Text style={styles.notificationBadgeText}>{Math.min(notifications.filter((n) => !n.read).length, 9)}+</Text>
+                <Text style={styles.notificationBadgeText}>
+                  {unreadNotificationsCount > 9 ? "9+" : String(unreadNotificationsCount)}
+                </Text>
               </View>
             ) : null}
           </Pressable>

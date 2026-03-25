@@ -1,6 +1,6 @@
 # Ecofy
 
-Ecofy is a React Native + Expo app with an Express/MongoDB backend for:
+Ecofy is a React Native + Expo app with an Express/MongoDB backend for-
 - community posts (blogs/articles),
 - civic issue workflows,
 - and a marketplace for upcycled products.

@@ -67,7 +67,7 @@ It includes social-feed interactions (likes, media posts, notifications), produc
 
 ## Setup
 
-### 1. Install dependencies
+### 1. Install dependencies - 
 
 ```bash
 npm install
@@ -75,7 +75,7 @@ cd backend
 npm install
 ```
 
-### 2. Configure environment
+### 2. Configure environment -
 
 Frontend `.env`:
 - `EXPO_PUBLIC_API_BASE_URL` (backend base URL)
@@ -83,7 +83,7 @@ Frontend `.env`:
 Backend `.env`:
 - MongoDB connection and any backend-required keys used in your local setup.
 
-### 3. Run backend
+### 3. Run backend -
 
 From `backend/`:
 
@@ -91,7 +91,7 @@ From `backend/`:
 npm start
 ```
 
-### 4. Run app
+### 4. Run app -
 
 From project root:
 

@@ -28,6 +28,43 @@ function isBase64MediaDataUrl(value) {
     return /^data:(image|video)\/[a-zA-Z0-9.+-]+;base64,/.test(normalized);
 }
 
+function dedupeIssueCompletionNotifications(entries) {
+    const latestByIssueId = new Map();
+
+    for (const entry of entries || []) {
+        const issueId = normalizeText(entry?.issueId);
+        if (!issueId) {
+            continue;
+        }
+
+        const prev = latestByIssueId.get(issueId);
+        const currentCreatedAt = entry?.createdAt ? new Date(entry.createdAt).getTime() : 0;
+        const prevCreatedAt = prev?.createdAt ? new Date(prev.createdAt).getTime() : 0;
+
+        if (!prev || currentCreatedAt >= prevCreatedAt) {
+            latestByIssueId.set(issueId, {
+                issueId,
+                issueSubject: normalizeText(entry?.issueSubject),
+                municipalityName: normalizeText(entry?.municipalityName),
+                message: normalizeText(entry?.message),
+                read: Boolean(entry?.read),
+                createdAt: entry?.createdAt || new Date(0)
+            });
+            continue;
+        }
+
+        if (entry?.read) {
+            prev.read = true;
+        }
+    }
+
+    return Array.from(latestByIssueId.values()).sort((a, b) => {
+        const first = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const second = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return second - first;
+    });
+}
+
 router.post('/register', async (req, res) => {
     const { firstName, lastName, area, email, password } = req.body;
 
@@ -1402,7 +1439,8 @@ router.get('/notifications/issue-completion', async (req, res) => {
             return res.status(404).json({ error: 'User not found' });
         }
 
-        return res.status(200).json(user.issueCompletionNotifications || []);
+        const deduped = dedupeIssueCompletionNotifications(user.issueCompletionNotifications || []);
+        return res.status(200).json(deduped);
     } catch (err) {
         console.error('Error fetching issue completion notifications:', err);
         return res.status(500).json({ error: 'Failed to fetch notifications' });
@@ -1418,23 +1456,26 @@ router.patch('/notifications/issue-completion/:issueId/read', async (req, res) =
     }
 
     try {
-        const user = await usermodel.findOne({ email: userEmail });
-        
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-
-        // Find and mark the notification as read
-        const notification = user.issueCompletionNotifications.find(
-            (notif) => String(notif.issueId) === String(issueId)
+        const updateResult = await usermodel.updateOne(
+            {
+                email: userEmail,
+                issueCompletionNotifications: {
+                    $elemMatch: { issueId: String(issueId) }
+                }
+            },
+            {
+                $set: {
+                    'issueCompletionNotifications.$[notification].read': true
+                }
+            },
+            {
+                arrayFilters: [{ 'notification.issueId': String(issueId) }]
+            }
         );
 
-        if (!notification) {
+        if (!updateResult.matchedCount) {
             return res.status(404).json({ error: 'Notification not found' });
         }
-
-        notification.read = true;
-        await user.save();
 
         return res.status(200).json({ message: 'Notification marked as read' });
     } catch (err) {
@@ -1496,25 +1537,37 @@ router.post('/admin/issues/:issueId/request-completion', async (req, res) => {
             return res.status(500).json({ error: 'Failed to send completion email' });
         }
 
-        // Add in-app notification to user's profile
+        // Add one in-app notification per issue id, even under rapid duplicate taps.
         const notificationMessage = 'An issue has been solved, please check your mail for details.';
-        const user = await usermodel.findOne({ email: issue.userEmail });
-        
-        if (user) {
-            user.issueCompletionNotifications.push({
-                issueId: issueId,
-                issueSubject: issue.subject,
-                municipalityName: municipality.municipalityName,
-                message: notificationMessage,
-                read: false
-            });
-            await user.save();
-        }
+        const normalizedIssueId = String(issueId);
+        const updateResult = await usermodel.updateOne(
+            {
+                email: issue.userEmail,
+                issueCompletionNotifications: {
+                    $not: {
+                        $elemMatch: {
+                            issueId: normalizedIssueId
+                        }
+                    }
+                }
+            },
+            {
+                $push: {
+                    issueCompletionNotifications: {
+                        issueId: normalizedIssueId,
+                        issueSubject: issue.subject,
+                        municipalityName: municipality.municipalityName,
+                        message: notificationMessage,
+                        read: false
+                    }
+                }
+            }
+        );
 
         return res.status(200).json({ 
             message: 'Completion notification sent to issue reporter',
             emailSent: true,
-            notificationCreated: !!user
+            notificationCreated: updateResult.modifiedCount > 0
         });
     } catch (err) {
         console.error('Error sending issue completion notification:', err);

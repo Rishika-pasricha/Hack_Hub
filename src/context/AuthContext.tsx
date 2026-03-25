@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { LoginResponse } from "../types/auth";
+import { logError } from "../utils/errorLogger";
 
 export type AuthUser = Pick<
   LoginResponse,
@@ -31,7 +32,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
         setUser(JSON.parse(rawUser) as AuthUser);
-      } catch {
+      } catch (error) {
+        logError("AuthContext.loadUser", error);
         setUser(null);
       } finally {
         if (active) {
@@ -59,8 +61,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
         }
-      } catch {
-        // Ignore persistence failures to keep auth state usable in memory.
+      } catch (error) {
+        logError("AuthContext.persistUser", error);
       }
     };
 

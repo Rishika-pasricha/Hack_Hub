@@ -202,13 +202,36 @@ export default function BlogsTab() {
         getIssueCompletionNotifications(user.email.toLowerCase())
       ]);
       
+      const dedupedIssueNotifications = Array.from(
+        issueNotifications.reduce((acc, issue: any) => {
+          const issueId = String(issue?.issueId || "").trim();
+          if (!issueId) {
+            return acc;
+          }
+
+          const existing = acc.get(issueId);
+          const existingCreatedAt = existing?.createdAt ? new Date(existing.createdAt).getTime() : 0;
+          const incomingCreatedAt = issue?.createdAt ? new Date(issue.createdAt).getTime() : 0;
+
+          if (!existing || incomingCreatedAt >= existingCreatedAt) {
+            acc.set(issueId, issue);
+          }
+
+          if (issue?.read && existing) {
+            existing.read = true;
+          }
+
+          return acc;
+        }, new Map<string, any>()).values()
+      );
+
       const combinedNotifications = [
         ...likeNotifications.map((notification) => ({
           ...notification,
           // Like notifications currently have no read/unread API state.
           read: true
         })),
-        ...issueNotifications.map((issue: any) => ({
+        ...dedupedIssueNotifications.map((issue: any) => ({
           id: `issue-${issue.issueId}`,
           type: "issue_completion" as const,
           message: issue.message,
@@ -219,7 +242,12 @@ export default function BlogsTab() {
         }))
       ];
       
-      setNotifications(combinedNotifications);
+      const uniquelyKeyedNotifications = combinedNotifications.map((notification, index) => ({
+        ...notification,
+        id: `${notification.id}-${notification.createdAt || "unknown"}-${index}`
+      }));
+
+      setNotifications(uniquelyKeyedNotifications);
     } catch {
       setNotifications([]);
     } finally {

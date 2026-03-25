@@ -203,6 +203,7 @@ function ScatterPlot({ values }: { values: number[] }) {
 export default function AdminDashboard() {
   const router = useRouter();
   const { user, logout, isHydrated } = useAuth();
+  const issueCompletionInFlightRef = useRef<Set<string>>(new Set());
   const municipalityEmail = user?.email || "";
   const [pendingBlogs, setPendingBlogs] = useState<BlogPost[]>([]);
   const [issues, setIssues] = useState<Issue[]>([]);
@@ -335,6 +336,11 @@ export default function AdminDashboard() {
   };
 
   const handleIssueCompletion = async (issueId: string, adminName: string) => {
+    if (issueCompletionInFlightRef.current.has(issueId)) {
+      return;
+    }
+
+    issueCompletionInFlightRef.current.add(issueId);
     try {
       setMessage(null);
       setProcessingIssueId(issueId);
@@ -343,6 +349,7 @@ export default function AdminDashboard() {
     } catch (err: any) {
       setMessage(err.message || "Failed to send completion notification");
     } finally {
+      issueCompletionInFlightRef.current.delete(issueId);
       setProcessingIssueId(null);
     }
   };

@@ -9,7 +9,8 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "import:municipalities": "node scripts/importMunicipalities.js"
+    "import:municipalities": "node scripts/importMunicipalities.js",
+    "cleanup:issue-notifications": "node scripts/dedupeIssueNotifications.js"
   },
   "keywords": [],
   "author": "",

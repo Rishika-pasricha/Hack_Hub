@@ -39,6 +39,49 @@ const userSchema= new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 })
 
+function dedupeIssueCompletionNotifications(entries) {
+    const latestByIssueId = new Map();
+
+    for (const entry of entries || []) {
+        const issueId = String(entry?.issueId || '').trim();
+        if (!issueId) {
+            continue;
+        }
+
+        const prev = latestByIssueId.get(issueId);
+        const currentCreatedAt = entry?.createdAt ? new Date(entry.createdAt).getTime() : 0;
+        const prevCreatedAt = prev?.createdAt ? new Date(prev.createdAt).getTime() : 0;
+
+        if (!prev || currentCreatedAt >= prevCreatedAt) {
+            latestByIssueId.set(issueId, {
+                issueId,
+                issueSubject: String(entry?.issueSubject || '').trim(),
+                municipalityName: String(entry?.municipalityName || '').trim(),
+                message: String(entry?.message || '').trim(),
+                read: Boolean(entry?.read),
+                createdAt: entry?.createdAt || new Date(0)
+            });
+            continue;
+        }
+
+        if (entry?.read) {
+            prev.read = true;
+        }
+    }
+
+    return Array.from(latestByIssueId.values());
+}
+
+userSchema.pre('save', function dedupeNotifications(next) {
+    if (!this.isModified('issueCompletionNotifications')) {
+        next();
+        return;
+    }
+
+    this.issueCompletionNotifications = dedupeIssueCompletionNotifications(this.issueCompletionNotifications || []);
+    next();
+});
+
 userSchema.index({ email: 1 }, { unique: true });
 
 module.exports = mongoose.model('User', userSchema)

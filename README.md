@@ -115,7 +115,7 @@ If email features are enabled in your setup, also add the provider-specific keys
 
 ## Local Development
 
-### 1. Install dependencies
+### 1. Install dependencies - 
 
 ```bash
 npm install
@@ -123,7 +123,19 @@ cd backend
 npm install
 ```
 
+<<<<<<< HEAD
 ### 2. Run backend
+=======
+### 2. Configure environment -
+
+Frontend `.env`:
+- `EXPO_PUBLIC_API_BASE_URL` (backend base URL)
+
+Backend `.env`:
+- MongoDB connection and any backend-required keys used in your local setup.
+
+### 3. Run backend -
+>>>>>>> 9057776c3ddada05b80de2e7a17e626d33d7ec54
 
 From `backend/`:
 
@@ -131,7 +143,11 @@ From `backend/`:
 node app.js
 ```
 
+<<<<<<< HEAD
 ### 3. Run frontend app
+=======
+### 4. Run app -
+>>>>>>> 9057776c3ddada05b80de2e7a17e626d33d7ec54
 
 From project root:
 

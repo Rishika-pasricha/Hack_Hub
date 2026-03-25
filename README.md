@@ -1,71 +1,119 @@
 # Ecofy
 
-Ecofy is a React Native + Expo app with an Express/MongoDB backend for:
-- community posts (blogs/articles),
-- civic issue workflows,
-- and a marketplace for upcycled products.
+Ecofy is a full-stack civic engagement and sustainable marketplace app built with Expo (React Native + TypeScript) and an Express + MongoDB backend.
 
-It includes social-feed interactions (likes, media posts, notifications), product moderation/reporting, and profile/account management.
+The platform combines:
+- community blogs with municipality moderation,
+- civic issue reporting with media evidence,
+- municipality admin analytics,
+- and an eco-friendly product marketplace with report-based moderation.
 
-## Core Features
+## Current Features
 
-### User Feed
-- Home feed with approved posts.
-- Image + video post support (gallery upload).
-- Like/unlike posts.
-- Autoplay video preview in feed (single active video), mute toggle, tap-to-play/pause, fullscreen, auto-loop.
-- Tap image to open fullscreen preview.
-- Notifications panel:
-  - post likes
-  - product report notifications
+### Authentication and Accounts
+- User registration and login.
+- Municipality/admin login via municipality contact email.
+- Forgot-password OTP flow:
+  - send OTP,
+  - verify OTP,
+  - reset password.
+- Profile update (name, area, profile image).
+- Account deletion with related data cleanup.
 
-### Civic Hub
-- Municipality mapping by registered area.
-- Civic issue flow entry point.
-- Blog/article submission for municipality approval.
+### Community Blogs
+- Submit blogs with text and/or media (image/video).
+- Up to 4 media attachments per post.
+- Municipality approval pipeline (`pending` -> `approved`).
+- Like/unlike approved posts.
+- My Posts management (edit/delete).
+- Approved posts are auto-expired after 30 days (MongoDB TTL).
+
+### Civic Issues
+- Submit civic issues with required media evidence.
+- Track personal issue history.
+- Mark own issues as resolved.
+- Municipality admin can request completion confirmation for an issue.
+- User issue-completion notifications (mark as read).
+- Municipality leaderboard by issue resolution performance.
+
+### Municipality Admin Dashboard
+- Pending blog moderation.
+- Open issue management.
+- Issue completion request notifications via email + in-app message.
+- Activity analytics endpoint with metrics such as:
+  - total/resolved/open issues,
+  - weekly trends,
+  - weekday distribution,
+  - citizen participation,
+  - media adoption rates.
 
 ### Marketplace
-- Shop listing for products.
-- Product details + enquiry flow.
-- Product reporting with required reason:
-  - `spam`, `fake`, `offensive`, `scam`
-- Report moderation rules:
-  - product removed at `5` reports
-  - seller upload ban for `30 days` after every `10` removed products
+- Product listing with 1-4 media items (image/video).
+- My Products management (edit/delete).
+- Product reporting reasons:
+  - `spam`,
+  - `fake`,
+  - `offensive`,
+  - `scam`.
+- Moderation rules:
+  - product auto-removal at 5 reports,
+  - seller upload ban for 30 days after every 10 removed products.
 
-### My Products / My Posts
-- My Products: edit/delete uploaded products.
-- My Posts: edit/delete own posts.
-
-### Settings / Profile
-- Dedicated Settings page (separate from Civic Hub).
-- Edit account details (first name, last name, area).
-- Edit profile photo from gallery.
-- Logout.
-- Delete account (one confirmation) with related data cleanup.
-
-## Moderation & Retention Rules
-
-- Posts auto-delete after `30 days` (TTL index in MongoDB).
-- Notifications retained for `15 days` (filtered + pruned).
-- Report notifications are sent to product owners and can deep-link to the relevant product in My Products.
+### Data and Notifications
+- Municipality records are synced from CSV on backend startup.
+- Product report notifications are stored on user profiles.
+- Notification retention filtering is applied for older records.
 
 ## Tech Stack
 
 - Frontend: Expo, React Native, TypeScript, Expo Router
-- Media: `expo-image-picker`, `expo-video`
 - Backend: Node.js, Express, Mongoose
 - Database: MongoDB
+- Media: `expo-image-picker`, `expo-video`
+- Email: Nodemailer / Resend integration (OTP and issue completion flows)
 
-## Project Structure
+## Repository Structure
 
-- `src/` - Expo app code
-  - `src/app/` - screens/routes
-  - `src/services/` - API service layer
-  - `src/context/` - auth state
-- `backend/` - Express API + models/routes
+```text
+.
+|-- src/                         # Expo application
+|   |-- app/                     # Routes and screens
+|   |-- components/              # Reusable UI
+|   |-- context/                 # Auth context
+|   |-- services/                # API client + domain services
+|   `-- types/                   # TypeScript types
+|-- backend/                     # Express API
+|   |-- app.js                   # Server entry
+|   |-- config/                  # MongoDB config
+|   |-- models/                  # Mongoose models
+|   |-- routes/                  # API routes
+|   |-- scripts/                 # Data import scripts
+|   `-- utils/                   # Email + sync utilities
+|-- municipality_dataset.csv     # Municipality source data
+`-- render.yaml                  # Render deployment config
+```
 
-## Setup
+## Environment Variables
+
+Create these files before running locally:
+
+### Root `.env` (frontend)
+
+```env
+EXPO_PUBLIC_API_BASE_URL=http://localhost:8082
+```
+
+### `backend/.env`
+
+```env
+MONGO_URI=your_mongodb_connection_string
+PORT=8082
+NODE_ENV=development
+```
+
+If email features are enabled in your setup, also add the provider-specific keys required by `backend/utils/emailService.js`.
+
+## Local Development
 
 ### 1. Install dependencies
 
@@ -75,23 +123,15 @@ cd backend
 npm install
 ```
 
-### 2. Configure environment
-
-Frontend `.env`:
-- `EXPO_PUBLIC_API_BASE_URL` (backend base URL)
-
-Backend `.env`:
-- MongoDB connection and any backend-required keys used in your local setup.
-
-### 3. Run backend
+### 2. Run backend
 
 From `backend/`:
 
 ```bash
-npm start
+node app.js
 ```
 
-### 4. Run app
+### 3. Run frontend app
 
 From project root:
 
@@ -99,7 +139,46 @@ From project root:
 npm start
 ```
 
+Optional Expo targets:
+
+```bash
+npm run android
+npm run ios
+npm run web
+```
+
+## Municipality Data Import
+
+Municipality data sync runs automatically on backend startup.
+
+To run it manually:
+
+```bash
+cd backend
+npm run import:municipalities
+```
+
+## API Overview
+
+Main route groups in `backend/routes/userRouter.js`:
+- Auth: `/register`, `/login`, `/forgot-password`, `/verify-otp`, `/reset-password`
+- Profile: `/profile`, `/account`
+- Blogs: `/blogs`, `/blogs/my`, `/blogs/submit`, `/blogs/:id`, `/blogs/:id/like`
+- Issues: `/issues/submit`, `/issues/my`, `/issues/:id/resolve`, `/issues/leaderboard`
+- Admin: `/admin/pending-blogs`, `/admin/blogs/:id/approve`, `/admin/issues`, `/admin/issues/:issueId/request-completion`, `/municipality/activity-analytics`
+- Products: `/products`, `/products/my`, `/products/submit`, `/products/:id`, `/products/:id/report`
+- Notifications: `/notifications/likes`, `/notifications/issue-completion`, `/notifications/issue-completion/:issueId/read`
+
+## Deployment
+
+`render.yaml` is configured to deploy the backend service from `backend/` using:
+- build: `npm install`
+- start: `node app.js`
+
+Required Render environment variable:
+- `MONGO_URI`
+
 ## Notes
 
-- If you change profile photo/details in Settings, the Home header avatar and post avatars update from backend profile data.
-- Product report confirmation is shown in-app (alert + modal status text).
+- Backend currently has no `npm test` implementation.
+- The backend mounts `userRouter` at root (`/`), so paths above are direct route paths.

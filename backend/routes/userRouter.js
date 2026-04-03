@@ -1436,6 +1436,13 @@ router.get('/notifications/issue-completion', async (req, res) => {
         const user = await usermodel.findOne({ email: userEmail }).select('issueCompletionNotifications');
         
         if (!user) {
+            const municipality = await Municipality.findOne({ contactEmail: userEmail }).select('_id').lean();
+
+            // Municipality accounts do not store citizen issue-completion notifications.
+            if (municipality) {
+                return res.status(200).json([]);
+            }
+
             return res.status(404).json({ error: 'User not found' });
         }
 

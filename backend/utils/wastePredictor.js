@@ -151,6 +151,11 @@ function ensureWorker() {
     }
   });
 
+  workerProcess.stdin.on('error', (err) => {
+    const details = stderrBuffer ? ` | stderr: ${stderrBuffer}` : '';
+    rejectAllPending(`Waste predictor stdin error: ${err.message}${details}`);
+  });
+
   workerProcess.on('exit', (code) => {
     workerProcess = null;
     const details = stderrBuffer ? ` | stderr: ${stderrBuffer}` : '';
@@ -172,7 +177,17 @@ function predictWasteFromImage(imageDataUrl) {
     return Promise.reject(new Error('Invalid image payload'));
   }
 
-  const worker = ensureWorker();
+  let worker;
+  try {
+    worker = ensureWorker();
+  } catch (err) {
+    return Promise.reject(new Error(`Failed to start waste predictor: ${err.message}`));
+  }
+
+  if (!worker.stdin || worker.stdin.destroyed || worker.killed || worker.exitCode !== null) {
+    return Promise.reject(new Error('Waste predictor worker is unavailable'));
+  }
+
   const requestId = `${Date.now()}-${requestCounter++}`;
 
   return new Promise((resolve, reject) => {
@@ -188,13 +203,15 @@ function predictWasteFromImage(imageDataUrl) {
       imageDataUrl: normalizedImage
     };
 
-    try {
-      worker.stdin.write(`${JSON.stringify(payload)}\n`);
-    } catch (err) {
+    worker.stdin.write(`${JSON.stringify(payload)}\n`, (err) => {
+      if (!err) {
+        return;
+      }
+
       clearTimeout(timeout);
       pendingRequests.delete(requestId);
       reject(new Error(`Failed to send image to predictor: ${err.message}`));
-    }
+    });
   });
 }
 

@@ -4,7 +4,7 @@ services:
     env: node
     rootDir: backend
     buildCommand: npm install; python -m pip install --upgrade pip; python -m pip install -r requirements-ml.txt
-    startCommand: node app.js
+    startCommand: python -c "import numpy, PIL, tensorflow" || python -m pip install -r requirements-ml.txt; node app.js
     plan: free
     autoDeploy: true
     envVars:

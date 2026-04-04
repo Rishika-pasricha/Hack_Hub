@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
+import { useIsFocused } from "@react-navigation/native";
 import { colors, radii, spacing, typography } from "../../constants/theme";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { predictWaste } from "../../services/community";
@@ -17,6 +18,8 @@ export default function CameraTab() {
   const isAnalyzingRef = useRef(false);
   const isMountedRef = useRef(true);
   const liveLoopTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const liveLoopSessionRef = useRef(0);
+  const isFocused = useIsFocused();
   const [permission, requestPermission] = useCameraPermissions();
   const [uiState, setUiState] = useState<UiState>("idle");
   const [label, setLabel] = useState("Point your camera at waste");
@@ -28,6 +31,7 @@ export default function CameraTab() {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      liveLoopSessionRef.current += 1;
       if (liveLoopTimeoutRef.current) {
         clearTimeout(liveLoopTimeoutRef.current);
       }
@@ -47,7 +51,8 @@ export default function CameraTab() {
       const snapshot = await cameraRef.current.takePictureAsync({
         base64: false,
         quality: CAPTURE_QUALITY,
-        skipProcessing: true
+        skipProcessing: true,
+        shutterSound: false
       });
 
       if (!snapshot?.uri || !isMountedRef.current) {
@@ -91,40 +96,63 @@ export default function CameraTab() {
     }
   }, []);
 
-  const runLiveLoop = useCallback(async () => {
-    if (!isMountedRef.current || !isLiveEnabled || !permission?.granted) {
+  const shouldRunLive = Boolean(permission?.granted && isLiveEnabled && isFocused);
+
+  const runLiveLoop = useCallback(async (sessionId: number) => {
+    if (
+      !isMountedRef.current ||
+      sessionId !== liveLoopSessionRef.current ||
+      !permission?.granted ||
+      !isLiveEnabled ||
+      !isFocused
+    ) {
       return;
     }
 
     await captureAndPredict();
 
-    if (!isMountedRef.current || !isLiveEnabled || !permission?.granted) {
+    if (
+      !isMountedRef.current ||
+      sessionId !== liveLoopSessionRef.current ||
+      !permission?.granted ||
+      !isLiveEnabled ||
+      !isFocused
+    ) {
       return;
     }
 
     liveLoopTimeoutRef.current = setTimeout(() => {
-      void runLiveLoop();
+      void runLiveLoop(sessionId);
     }, LIVE_SCAN_GAP_MS);
-  }, [captureAndPredict, isLiveEnabled, permission?.granted]);
+  }, [captureAndPredict, isFocused, isLiveEnabled, permission?.granted]);
 
   useEffect(() => {
-    if (!permission?.granted || !isLiveEnabled) {
+    liveLoopSessionRef.current += 1;
+    const sessionId = liveLoopSessionRef.current;
+
+    if (!shouldRunLive) {
       if (liveLoopTimeoutRef.current) {
         clearTimeout(liveLoopTimeoutRef.current);
         liveLoopTimeoutRef.current = null;
       }
+
+      if (!isFocused && uiState !== "idle") {
+        setUiState("idle");
+      }
+
       return;
     }
 
-    void runLiveLoop();
+    void runLiveLoop(sessionId);
 
     return () => {
+      liveLoopSessionRef.current += 1;
       if (liveLoopTimeoutRef.current) {
         clearTimeout(liveLoopTimeoutRef.current);
         liveLoopTimeoutRef.current = null;
       }
     };
-  }, [isLiveEnabled, permission?.granted, runLiveLoop]);
+  }, [isFocused, runLiveLoop, shouldRunLive, uiState]);
 
   if (!permission) {
     return (

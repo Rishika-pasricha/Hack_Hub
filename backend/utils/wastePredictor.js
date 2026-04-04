@@ -1,16 +1,51 @@
 const path = require('path');
 const fs = require('fs');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 
 const WORKER_SCRIPT_PATH = path.resolve(__dirname, '..', 'ml', 'waste_predictor_worker.py');
+const REQUIREMENTS_PATH = path.resolve(__dirname, '..', 'requirements-ml.txt');
+const BACKEND_DIR = path.resolve(__dirname, '..');
 const PREDICTION_TIMEOUT_MS = 10000;
 const MAX_STDERR_LOG_CHARS = 4000;
 
 let workerProcess = null;
 let stdoutBuffer = '';
 let stderrBuffer = '';
+let workerReadyPromise = null;
+let resolveWorkerReady = null;
+let rejectWorkerReady = null;
+let autoInstallAttempted = false;
 let requestCounter = 0;
 const pendingRequests = new Map();
+
+function resetWorkerReadyState() {
+  workerReadyPromise = null;
+  resolveWorkerReady = null;
+  rejectWorkerReady = null;
+}
+
+function initWorkerReadyPromise() {
+  workerReadyPromise = new Promise((resolve, reject) => {
+    resolveWorkerReady = resolve;
+    rejectWorkerReady = reject;
+  });
+}
+
+function markWorkerReady() {
+  if (resolveWorkerReady) {
+    resolveWorkerReady();
+  }
+  resolveWorkerReady = null;
+  rejectWorkerReady = null;
+}
+
+function markWorkerFailed(message) {
+  if (rejectWorkerReady) {
+    rejectWorkerReady(new Error(message));
+  }
+  resolveWorkerReady = null;
+  rejectWorkerReady = null;
+}
 
 function resolveExistingPath(candidates, label) {
   for (const candidate of candidates) {
@@ -63,13 +98,64 @@ function rejectAllPending(message) {
   pendingRequests.clear();
 }
 
+function getPythonCommand() {
+  return process.env.PYTHON_BIN || (process.platform === 'win32' ? 'py' : 'python');
+}
+
+function maybeInstallMlDependenciesFromError(errorText) {
+  if (autoInstallAttempted || !fs.existsSync(REQUIREMENTS_PATH)) {
+    return false;
+  }
+
+  const text = String(errorText || '');
+  const missingModuleMatch = text.match(/ModuleNotFoundError:\s+No module named ['\"]([^'\"]+)['\"]/i);
+  const missingModule = missingModuleMatch?.[1] || '';
+  const eligibleMissingModule = ['numpy', 'PIL', 'tensorflow'].includes(missingModule);
+
+  if (!eligibleMissingModule) {
+    return false;
+  }
+
+  autoInstallAttempted = true;
+
+  const pythonCommand = getPythonCommand();
+  const installResult = spawnSync(
+    pythonCommand,
+    ['-m', 'pip', 'install', '-r', REQUIREMENTS_PATH],
+    {
+      cwd: BACKEND_DIR,
+      encoding: 'utf-8'
+    }
+  );
+
+  if (installResult.error) {
+    throw new Error(`Automatic ML dependency install failed: ${installResult.error.message}`);
+  }
+
+  if (installResult.status !== 0) {
+    const output = [installResult.stdout, installResult.stderr].filter(Boolean).join('\n').trim();
+    throw new Error(`Automatic ML dependency install failed with exit code ${installResult.status}. ${output}`);
+  }
+
+  return true;
+}
+
 function handleWorkerMessage(message) {
   if (message.type === 'ready') {
+    markWorkerReady();
     return;
   }
 
   if (message.type === 'startup_error') {
-    rejectAllPending(`Waste predictor startup failed: ${message.error || 'unknown error'}`);
+    const startupMessage = `Waste predictor startup failed: ${message.error || 'unknown error'}`;
+    markWorkerFailed(startupMessage);
+    rejectAllPending(startupMessage);
+
+    if (workerProcess && !workerProcess.killed) {
+      workerProcess.kill();
+    }
+
+    workerProcess = null;
     return;
   }
 
@@ -114,7 +200,9 @@ function ensureWorker() {
     throw err;
   }
 
-  const pythonCommand = process.env.PYTHON_BIN || (process.platform === 'win32' ? 'py' : 'python');
+  const pythonCommand = getPythonCommand();
+  initWorkerReadyPromise();
+
   workerProcess = spawn(pythonCommand, [WORKER_SCRIPT_PATH], {
     env: workerEnv,
     stdio: ['pipe', 'pipe', 'pipe']
@@ -159,33 +247,61 @@ function ensureWorker() {
   workerProcess.on('exit', (code) => {
     workerProcess = null;
     const details = stderrBuffer ? ` | stderr: ${stderrBuffer}` : '';
-    rejectAllPending(`Waste predictor worker exited with code ${code}${details}`);
+    const message = `Waste predictor worker exited with code ${code}${details}`;
+    markWorkerFailed(message);
+    rejectAllPending(message);
+    resetWorkerReadyState();
   });
 
   workerProcess.on('error', (err) => {
     workerProcess = null;
     const details = stderrBuffer ? ` | stderr: ${stderrBuffer}` : '';
-    rejectAllPending(`Waste predictor worker error: ${err.message}${details}`);
+    const message = `Waste predictor worker error: ${err.message}${details}`;
+    markWorkerFailed(message);
+    rejectAllPending(message);
+    resetWorkerReadyState();
   });
 
   return workerProcess;
 }
 
-function predictWasteFromImage(imageDataUrl) {
+async function ensureWorkerReadyWithRecovery() {
+  const worker = ensureWorker();
+
+  if (!workerReadyPromise) {
+    return worker;
+  }
+
+  try {
+    await workerReadyPromise;
+    return worker;
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err || 'Unknown worker startup failure');
+    const installed = maybeInstallMlDependenciesFromError(errorMessage);
+
+    if (!installed) {
+      throw err instanceof Error ? err : new Error(errorMessage);
+    }
+
+    const restartedWorker = ensureWorker();
+    if (workerReadyPromise) {
+      await workerReadyPromise;
+    }
+
+    return restartedWorker;
+  }
+}
+
+async function predictWasteFromImage(imageDataUrl) {
   const normalizedImage = String(imageDataUrl || '').trim();
   if (!normalizedImage.startsWith('data:image/')) {
-    return Promise.reject(new Error('Invalid image payload'));
+    throw new Error('Invalid image payload');
   }
 
-  let worker;
-  try {
-    worker = ensureWorker();
-  } catch (err) {
-    return Promise.reject(new Error(`Failed to start waste predictor: ${err.message}`));
-  }
+  const worker = await ensureWorkerReadyWithRecovery();
 
   if (!worker.stdin || worker.stdin.destroyed || worker.killed || worker.exitCode !== null) {
-    return Promise.reject(new Error('Waste predictor worker is unavailable'));
+    throw new Error('Waste predictor worker is unavailable');
   }
 
   const requestId = `${Date.now()}-${requestCounter++}`;

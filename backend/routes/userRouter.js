@@ -40,6 +40,7 @@ router.post('/waste/predict', async (req, res) => {
         const prediction = await predictWasteFromImage(imageDataUrl);
         return res.status(200).json(prediction);
     } catch (err) {
+        console.error('[wastePredictRoute]', err?.message || err);
         return res.status(500).json({
             error: 'Failed to predict waste class',
             details: err?.message || 'Unknown prediction error'

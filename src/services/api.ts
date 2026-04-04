@@ -27,6 +27,10 @@ function shouldRetry(status?: number) {
 }
 
 export async function apiRequest<T>(path: string, options: ApiOptions = {}): Promise<T> {
+  if (!API_BASE_URL) {
+    throw new Error("Missing EXPO_PUBLIC_API_BASE_URL. Configure your frontend .env.");
+  }
+
   const url = `${API_BASE_URL}${path}`;
   const maxAttempts = 2;
 
@@ -54,7 +58,11 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
       }
 
       if (!response.ok) {
-        const message = typeof data === "string" ? data : data?.error || data?.details || "Request failed";
+        const message =
+          typeof data === "string"
+            ? data
+            : [data?.error, data?.details].filter((part: unknown): part is string => typeof part === "string" && part.trim().length > 0).join(" | ") ||
+              "Request failed";
         throw toHttpError(message, response.status);
       }
 
@@ -62,11 +70,12 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
     } catch (error) {
       const status = (error as HttpError)?.status;
       const retrying = attempt < maxAttempts && shouldRetry(status);
+      const message = getErrorMessage(error, "Network request failed");
 
-      logError(`apiRequest ${options.method ?? "GET"} ${path}`, error);
+      logError(`apiRequest ${options.method ?? "GET"} ${path}`, message);
 
       if (!retrying) {
-        throw new Error(getErrorMessage(error, "Network request failed"));
+        throw new Error(message);
       }
 
       await sleep(300 * attempt);

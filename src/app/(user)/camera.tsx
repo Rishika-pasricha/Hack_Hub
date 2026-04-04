@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { colors, radii, spacing, typography } from "../../constants/theme";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { predictWaste } from "../../services/community";
-
-const SCAN_INTERVAL_MS = 1400;
+import { getErrorMessage } from "../../utils/errorLogger";
 
 type UiState = "idle" | "detecting" | "ready" | "error";
 
@@ -25,7 +24,7 @@ export default function CameraTab() {
     };
   }, []);
 
-  const analyzeFrame = useCallback(async () => {
+  const captureAndPredict = useCallback(async () => {
     if (!cameraRef.current || isAnalyzingRef.current) {
       return;
     }
@@ -53,31 +52,17 @@ export default function CameraTab() {
       setLabel(prediction.label || "Unknown");
       setConfidence(Number.isFinite(prediction.confidence) ? prediction.confidence : null);
       setUiState("ready");
-    } catch {
+    } catch (error) {
       if (!isMountedRef.current) {
         return;
       }
       setUiState("error");
-      setLabel("Could not detect waste type");
+      setLabel(getErrorMessage(error, "Could not detect waste type"));
       setConfidence(null);
     } finally {
       isAnalyzingRef.current = false;
     }
   }, []);
-
-  useEffect(() => {
-    if (!permission?.granted) {
-      return;
-    }
-
-    const interval = setInterval(() => {
-      void analyzeFrame();
-    }, SCAN_INTERVAL_MS);
-
-    void analyzeFrame();
-
-    return () => clearInterval(interval);
-  }, [analyzeFrame, permission?.granted]);
 
   if (!permission) {
     return (
@@ -124,6 +109,16 @@ export default function CameraTab() {
             </Text>
           </View>
         </View>
+
+        <Pressable
+          style={[styles.captureButton, uiState === "detecting" && styles.captureButtonDisabled]}
+          onPress={() => void captureAndPredict()}
+          disabled={uiState === "detecting"}
+        >
+          <Text style={styles.captureButtonText}>
+            {uiState === "detecting" ? "Predicting..." : "Capture Image and Predict"}
+          </Text>
+        </Pressable>
       </View>
     </SafeAreaView>
   );
@@ -186,6 +181,21 @@ const styles = StyleSheet.create({
   permissionAction: {
     marginTop: spacing.sm,
     color: colors.primary,
+    fontSize: typography.sizes.md,
+    fontWeight: "700"
+  },
+  captureButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    alignItems: "center"
+  },
+  captureButtonDisabled: {
+    opacity: 0.65
+  },
+  captureButtonText: {
+    color: "#fff",
     fontSize: typography.sizes.md,
     fontWeight: "700"
   }

@@ -1,21 +1,57 @@
 const path = require('path');
+const fs = require('fs');
 const { spawn } = require('child_process');
 
-const MODEL_PATH = path.resolve(__dirname, '..', '..', 'waste_classifier.h5');
-const CLASS_NAMES_PATH = path.resolve(__dirname, '..', '..', 'class_names.json');
 const WORKER_SCRIPT_PATH = path.resolve(__dirname, '..', 'ml', 'waste_predictor_worker.py');
 const PREDICTION_TIMEOUT_MS = 10000;
+const MAX_STDERR_LOG_CHARS = 4000;
 
 let workerProcess = null;
 let stdoutBuffer = '';
+let stderrBuffer = '';
 let requestCounter = 0;
 const pendingRequests = new Map();
 
+function resolveExistingPath(candidates, label) {
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new Error(`${label} not found. Checked: ${candidates.join(', ')}`);
+}
+
+function resolveModelPath() {
+  return resolveExistingPath(
+    [
+      process.env.WASTE_MODEL_PATH || '',
+      path.resolve(__dirname, '..', '..', 'waste_classifier.h5'),
+      path.resolve(__dirname, '..', 'waste_classifier.h5')
+    ].filter(Boolean),
+    'Waste model file'
+  );
+}
+
+function resolveClassNamesPath() {
+  return resolveExistingPath(
+    [
+      process.env.WASTE_CLASS_NAMES_PATH || '',
+      path.resolve(__dirname, '..', '..', 'class_names.json'),
+      path.resolve(__dirname, '..', 'class_names.json')
+    ].filter(Boolean),
+    'Class names file'
+  );
+}
+
 function buildWorkerEnv() {
+  const modelPath = resolveModelPath();
+  const classNamesPath = resolveClassNamesPath();
+
   return {
     ...process.env,
-    WASTE_MODEL_PATH: MODEL_PATH,
-    WASTE_CLASS_NAMES_PATH: CLASS_NAMES_PATH
+    WASTE_MODEL_PATH: modelPath,
+    WASTE_CLASS_NAMES_PATH: classNamesPath
   };
 }
 
@@ -70,13 +106,22 @@ function ensureWorker() {
     return workerProcess;
   }
 
+  let workerEnv;
+  try {
+    workerEnv = buildWorkerEnv();
+  } catch (err) {
+    rejectAllPending(`Waste predictor config error: ${err.message}`);
+    throw err;
+  }
+
   const pythonCommand = process.env.PYTHON_BIN || (process.platform === 'win32' ? 'py' : 'python');
   workerProcess = spawn(pythonCommand, [WORKER_SCRIPT_PATH], {
-    env: buildWorkerEnv(),
+    env: workerEnv,
     stdio: ['pipe', 'pipe', 'pipe']
   });
 
   stdoutBuffer = '';
+  stderrBuffer = '';
 
   workerProcess.stdout.on('data', (chunk) => {
     stdoutBuffer += chunk.toString();
@@ -101,18 +146,21 @@ function ensureWorker() {
   workerProcess.stderr.on('data', (chunk) => {
     const text = chunk.toString().trim();
     if (text) {
+      stderrBuffer = `${stderrBuffer}\n${text}`.slice(-MAX_STDERR_LOG_CHARS);
       console.error('[wastePredictor]', text);
     }
   });
 
   workerProcess.on('exit', (code) => {
     workerProcess = null;
-    rejectAllPending(`Waste predictor worker exited with code ${code}`);
+    const details = stderrBuffer ? ` | stderr: ${stderrBuffer}` : '';
+    rejectAllPending(`Waste predictor worker exited with code ${code}${details}`);
   });
 
   workerProcess.on('error', (err) => {
     workerProcess = null;
-    rejectAllPending(`Waste predictor worker error: ${err.message}`);
+    const details = stderrBuffer ? ` | stderr: ${stderrBuffer}` : '';
+    rejectAllPending(`Waste predictor worker error: ${err.message}${details}`);
   });
 
   return workerProcess;

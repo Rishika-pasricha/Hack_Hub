@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { colors, radii, spacing, typography } from "../../constants/theme";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { predictWaste } from "../../services/community";
 import { getErrorMessage } from "../../utils/errorLogger";
 
 type UiState = "idle" | "detecting" | "ready" | "error";
-const LIVE_SCAN_GAP_MS = 350;
-const CAPTURE_QUALITY = 0.2;
+const LIVE_SCAN_GAP_MS = 80;
+const CAPTURE_QUALITY = 0.35;
+const TARGET_IMAGE_SIZE = 224;
 
 export default function CameraTab() {
   const cameraRef = useRef<CameraView | null>(null);
@@ -43,16 +45,30 @@ export default function CameraTab() {
       setUiState((prev) => (prev === "ready" ? prev : "detecting"));
 
       const snapshot = await cameraRef.current.takePictureAsync({
-        base64: true,
+        base64: false,
         quality: CAPTURE_QUALITY,
         skipProcessing: true
       });
 
-      if (!snapshot?.base64 || !isMountedRef.current) {
+      if (!snapshot?.uri || !isMountedRef.current) {
         return;
       }
 
-      const prediction = await predictWaste(`data:image/jpeg;base64,${snapshot.base64}`);
+      const optimized = await manipulateAsync(
+        snapshot.uri,
+        [{ resize: { width: TARGET_IMAGE_SIZE, height: TARGET_IMAGE_SIZE } }],
+        {
+          compress: 0.3,
+          format: SaveFormat.JPEG,
+          base64: true
+        }
+      );
+
+      if (!optimized.base64 || !isMountedRef.current) {
+        return;
+      }
+
+      const prediction = await predictWaste(`data:image/jpeg;base64,${optimized.base64}`);
 
       if (!isMountedRef.current) {
         return;
@@ -160,14 +176,6 @@ export default function CameraTab() {
         </View>
 
         <Pressable
-          style={[styles.captureButton, uiState === "detecting" && styles.captureButtonDisabled]}
-          onPress={() => void captureAndPredict()}
-          disabled={uiState === "detecting"}
-        >
-          <Text style={styles.captureButtonText}>{uiState === "detecting" ? "Predicting..." : "Capture Now"}</Text>
-        </Pressable>
-
-        <Pressable
           style={[styles.liveToggleButton, !isLiveEnabled && styles.liveToggleButtonPaused]}
           onPress={() => setIsLiveEnabled((prev) => !prev)}
         >
@@ -240,21 +248,6 @@ const styles = StyleSheet.create({
   permissionAction: {
     marginTop: spacing.sm,
     color: colors.primary,
-    fontSize: typography.sizes.md,
-    fontWeight: "700"
-  },
-  captureButton: {
-    backgroundColor: colors.primary,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    alignItems: "center"
-  },
-  captureButtonDisabled: {
-    opacity: 0.65
-  },
-  captureButtonText: {
-    color: "#fff",
     fontSize: typography.sizes.md,
     fontWeight: "700"
   },

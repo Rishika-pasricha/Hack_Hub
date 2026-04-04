@@ -18,6 +18,8 @@ let autoInstallAttempted = false;
 let requestCounter = 0;
 const pendingRequests = new Map();
 let resolvedPythonCommand = null;
+let warmupPromise = null;
+const WARMUP_IMAGE_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO9WzXQAAAAASUVORK5CYII=';
 
 function resetWorkerReadyState() {
   workerReadyPromise = null;
@@ -413,6 +415,22 @@ async function predictWasteFromImage(imageDataUrl) {
   });
 }
 
+function warmupWastePredictor() {
+  if (warmupPromise) {
+    return warmupPromise;
+  }
+
+  warmupPromise = predictWasteFromImage(WARMUP_IMAGE_DATA_URL)
+    .then(() => undefined)
+    .catch((error) => {
+      warmupPromise = null;
+      throw error;
+    });
+
+  return warmupPromise;
+}
+
 module.exports = {
-  predictWasteFromImage
+  predictWasteFromImage,
+  warmupWastePredictor
 };

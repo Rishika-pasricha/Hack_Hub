@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('./config/db'); // Initialize MongoDB connection
 const { syncMunicipalitiesFromCsv } = require('./utils/municipalitySync');
+const { warmupWastePredictor } = require('./utils/wastePredictor');
 const app = express();
 const userRouter = require('./routes/userRouter');
 
@@ -28,3 +29,13 @@ mongoose.connection.once('open', async () => {
 const PORT = process.env.PORT || 8082;
 
 app.listen(PORT);
+
+setTimeout(() => {
+    warmupWastePredictor()
+        .then(() => {
+            console.log('Waste predictor warmup complete');
+        })
+        .catch((err) => {
+            console.error('Waste predictor warmup failed:', err.message);
+        });
+}, 1000);

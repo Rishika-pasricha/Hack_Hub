@@ -9,6 +9,7 @@ const router = express.Router();
 const bcrypt = require('bcrypt');
 const { generateOTP, sendOTPEmail, sendIssueCompletionEmail } = require('../utils/emailService');
 const { isMunicipalityEmail } = require('../utils/municipalityEmails');
+const { predictWasteFromImage } = require('../utils/wastePredictor');
 
 function normalizeText(input) {
     return String(input || '').trim();
@@ -27,6 +28,24 @@ function isBase64MediaDataUrl(value) {
     const normalized = String(value || '').trim();
     return /^data:(image|video)\/[a-zA-Z0-9.+-]+;base64,/.test(normalized);
 }
+
+router.post('/waste/predict', async (req, res) => {
+    const imageDataUrl = String(req.body?.imageDataUrl || '').trim();
+
+    if (!isBase64ImageDataUrl(imageDataUrl)) {
+        return res.status(400).json({ error: 'imageDataUrl must be a valid base64 image data URL' });
+    }
+
+    try {
+        const prediction = await predictWasteFromImage(imageDataUrl);
+        return res.status(200).json(prediction);
+    } catch (err) {
+        return res.status(500).json({
+            error: 'Failed to predict waste class',
+            details: err?.message || 'Unknown prediction error'
+        });
+    }
+});
 
 function dedupeIssueCompletionNotifications(entries) {
     const latestByIssueId = new Map();

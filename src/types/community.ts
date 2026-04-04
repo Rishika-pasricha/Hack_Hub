@@ -69,3 +69,12 @@ export type Product = {
   reportCount?: number;
   createdAt: string;
 };
+
+export type WastePrediction = {
+  label: string;
+  confidence: number;
+  probabilities: Array<{
+    label: string;
+    score: number;
+  }>;
+};

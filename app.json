@@ -29,7 +29,13 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Ecofy to use your camera for live waste segregation."
+        }
+      ]
     ]
   }
 }

@@ -1,8 +1,22 @@
 import { apiRequest } from "./api";
-import { BlogPost, Issue, MunicipalityInfo, Product, MunicipalityLeaderboardEntry } from "../types/community";
+import {
+  BlogPost,
+  Issue,
+  MunicipalityInfo,
+  Product,
+  MunicipalityLeaderboardEntry,
+  WastePrediction
+} from "../types/community";
 
 export function getMunicipalityByArea(area: string) {
   return apiRequest<MunicipalityInfo>(`/municipality/by-area?area=${encodeURIComponent(area)}`);
+}
+
+export function predictWaste(imageDataUrl: string) {
+  return apiRequest<WastePrediction>("/waste/predict", {
+    method: "POST",
+    body: { imageDataUrl }
+  });
 }
 
 export function getApprovedBlogs(municipalityEmail?: string, userEmail?: string) {

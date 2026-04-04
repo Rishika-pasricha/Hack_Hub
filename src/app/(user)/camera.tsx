@@ -7,20 +7,28 @@ import { predictWaste } from "../../services/community";
 import { getErrorMessage } from "../../utils/errorLogger";
 
 type UiState = "idle" | "detecting" | "ready" | "error";
+const LIVE_SCAN_GAP_MS = 350;
+const CAPTURE_QUALITY = 0.2;
 
 export default function CameraTab() {
   const cameraRef = useRef<CameraView | null>(null);
   const isAnalyzingRef = useRef(false);
   const isMountedRef = useRef(true);
+  const liveLoopTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [uiState, setUiState] = useState<UiState>("idle");
   const [label, setLabel] = useState("Point your camera at waste");
   const [confidence, setConfidence] = useState<number | null>(null);
+  const [lastLatencyMs, setLastLatencyMs] = useState<number | null>(null);
+  const [isLiveEnabled, setIsLiveEnabled] = useState(true);
 
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      if (liveLoopTimeoutRef.current) {
+        clearTimeout(liveLoopTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -30,12 +38,13 @@ export default function CameraTab() {
     }
 
     try {
+      const startedAt = Date.now();
       isAnalyzingRef.current = true;
       setUiState((prev) => (prev === "ready" ? prev : "detecting"));
 
       const snapshot = await cameraRef.current.takePictureAsync({
         base64: true,
-        quality: 0.35,
+        quality: CAPTURE_QUALITY,
         skipProcessing: true
       });
 
@@ -51,6 +60,7 @@ export default function CameraTab() {
 
       setLabel(prediction.label || "Unknown");
       setConfidence(Number.isFinite(prediction.confidence) ? prediction.confidence : null);
+      setLastLatencyMs(Date.now() - startedAt);
       setUiState("ready");
     } catch (error) {
       if (!isMountedRef.current) {
@@ -59,10 +69,46 @@ export default function CameraTab() {
       setUiState("error");
       setLabel(getErrorMessage(error, "Could not detect waste type"));
       setConfidence(null);
+      setLastLatencyMs(null);
     } finally {
       isAnalyzingRef.current = false;
     }
   }, []);
+
+  const runLiveLoop = useCallback(async () => {
+    if (!isMountedRef.current || !isLiveEnabled || !permission?.granted) {
+      return;
+    }
+
+    await captureAndPredict();
+
+    if (!isMountedRef.current || !isLiveEnabled || !permission?.granted) {
+      return;
+    }
+
+    liveLoopTimeoutRef.current = setTimeout(() => {
+      void runLiveLoop();
+    }, LIVE_SCAN_GAP_MS);
+  }, [captureAndPredict, isLiveEnabled, permission?.granted]);
+
+  useEffect(() => {
+    if (!permission?.granted || !isLiveEnabled) {
+      if (liveLoopTimeoutRef.current) {
+        clearTimeout(liveLoopTimeoutRef.current);
+        liveLoopTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    void runLiveLoop();
+
+    return () => {
+      if (liveLoopTimeoutRef.current) {
+        clearTimeout(liveLoopTimeoutRef.current);
+        liveLoopTimeoutRef.current = null;
+      }
+    };
+  }, [isLiveEnabled, permission?.granted, runLiveLoop]);
 
   if (!permission) {
     return (
@@ -107,6 +153,9 @@ export default function CameraTab() {
             <Text style={styles.predictionConfidence}>
               {confidence === null ? "--" : `${(confidence * 100).toFixed(1)}% confidence`}
             </Text>
+            <Text style={styles.predictionMeta}>
+              {lastLatencyMs === null ? "Latency: --" : `Latency: ${lastLatencyMs} ms`}
+            </Text>
           </View>
         </View>
 
@@ -115,9 +164,14 @@ export default function CameraTab() {
           onPress={() => void captureAndPredict()}
           disabled={uiState === "detecting"}
         >
-          <Text style={styles.captureButtonText}>
-            {uiState === "detecting" ? "Predicting..." : "Capture Image and Predict"}
-          </Text>
+          <Text style={styles.captureButtonText}>{uiState === "detecting" ? "Predicting..." : "Capture Now"}</Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.liveToggleButton, !isLiveEnabled && styles.liveToggleButtonPaused]}
+          onPress={() => setIsLiveEnabled((prev) => !prev)}
+        >
+          <Text style={styles.liveToggleButtonText}>{isLiveEnabled ? "Pause Live Scan" : "Resume Live Scan"}</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -178,6 +232,11 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.sm,
     fontWeight: "600"
   },
+  predictionMeta: {
+    color: "#c8e9db",
+    fontSize: typography.sizes.xs,
+    fontWeight: "600"
+  },
   permissionAction: {
     marginTop: spacing.sm,
     color: colors.primary,
@@ -196,6 +255,23 @@ const styles = StyleSheet.create({
   },
   captureButtonText: {
     color: "#fff",
+    fontSize: typography.sizes.md,
+    fontWeight: "700"
+  },
+  liveToggleButton: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.border
+  },
+  liveToggleButtonPaused: {
+    backgroundColor: "#f3ece2"
+  },
+  liveToggleButtonText: {
+    color: colors.text,
     fontSize: typography.sizes.md,
     fontWeight: "700"
   }

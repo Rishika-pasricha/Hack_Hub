@@ -9,6 +9,8 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "postinstall": "node scripts/installMlDeps.js",
+    "install:ml": "node scripts/installMlDeps.js",
     "import:municipalities": "node scripts/importMunicipalities.js",
     "cleanup:issue-notifications": "node scripts/dedupeIssueNotifications.js"
   },

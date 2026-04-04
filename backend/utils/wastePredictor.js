@@ -99,7 +99,7 @@ function rejectAllPending(message) {
 }
 
 function getPythonCommand() {
-  return process.env.PYTHON_BIN || (process.platform === 'win32' ? 'py' : 'python');
+  return process.env.PYTHON_BIN || 'python';
 }
 
 function maybeInstallMlDependenciesFromError(errorText) {
@@ -108,20 +108,18 @@ function maybeInstallMlDependenciesFromError(errorText) {
   }
 
   const text = String(errorText || '');
-  const missingModuleMatch = text.match(/ModuleNotFoundError:\s+No module named ['\"]([^'\"]+)['\"]/i);
-  const missingModule = missingModuleMatch?.[1] || '';
-  const eligibleMissingModule = ['numpy', 'PIL', 'tensorflow'].includes(missingModule);
+  const missingModuleMatch = text.match(/No module named ['\"]([^'\"]+)['\"]/i);
+  const missingModule = String(missingModuleMatch?.[1] || '').toLowerCase();
+  const eligibleMissingModule = ['numpy', 'pil', 'tensorflow', 'keras'].includes(missingModule);
 
   if (!eligibleMissingModule) {
     return false;
   }
 
-  autoInstallAttempted = true;
-
   const pythonCommand = getPythonCommand();
   const installResult = spawnSync(
     pythonCommand,
-    ['-m', 'pip', 'install', '-r', REQUIREMENTS_PATH],
+    ['-m', 'pip', 'install', '--no-cache-dir', '-r', REQUIREMENTS_PATH],
     {
       cwd: BACKEND_DIR,
       encoding: 'utf-8'
@@ -136,6 +134,8 @@ function maybeInstallMlDependenciesFromError(errorText) {
     const output = [installResult.stdout, installResult.stderr].filter(Boolean).join('\n').trim();
     throw new Error(`Automatic ML dependency install failed with exit code ${installResult.status}. ${output}`);
   }
+
+  autoInstallAttempted = true;
 
   return true;
 }

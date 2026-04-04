@@ -7,10 +7,6 @@ import sys
 import traceback
 from typing import Optional
 
-import numpy as np
-from PIL import Image
-
-
 def resolve_load_model():
     try:
         return importlib.import_module("tensorflow.keras.models").load_model
@@ -18,7 +14,8 @@ def resolve_load_model():
         return importlib.import_module("keras.models").load_model
 
 
-load_model = resolve_load_model()
+np = None
+Image = None
 
 
 MODEL_PATH = os.environ.get("WASTE_MODEL_PATH")
@@ -49,7 +46,11 @@ def load_class_names(file_path: Optional[str]):
 
 
 try:
-    model = load_model(MODEL_PATH)
+    import numpy as np
+    from PIL import Image
+
+    load_model = resolve_load_model()
+    model = load_model(MODEL_PATH, compile=False)
     class_names = load_class_names(CLASS_NAMES_PATH)
 
     input_shape = model.input_shape

@@ -10,6 +10,8 @@ if (!fs.existsSync(REQUIREMENTS_PATH)) {
   process.exit(0);
 }
 
+const shouldFailBuild = process.env.FAIL_ON_ML_INSTALL === '1';
+
 function getPythonCandidates() {
   const candidates = [];
 
@@ -28,30 +30,43 @@ function getPythonCandidates() {
 
 let lastFailure = '';
 for (const pythonCommand of getPythonCandidates()) {
+  const probe = spawnSync(pythonCommand, ['--version'], {
+    cwd: BACKEND_DIR,
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  });
+
+  if (probe.error || probe.status !== 0) {
+    const probeDetails = [probe.error?.message, probe.stdout, probe.stderr].filter(Boolean).join('\n').trim();
+    lastFailure = `Python command '${pythonCommand}' unavailable. ${probeDetails}`;
+    continue;
+  }
+
   const result = spawnSync(
     pythonCommand,
     ['-m', 'pip', 'install', '--no-cache-dir', '-r', REQUIREMENTS_PATH],
     {
       cwd: BACKEND_DIR,
       encoding: 'utf-8',
-      stdio: 'pipe'
+      stdio: 'inherit'
     }
   );
 
   if (!result.error && result.status === 0) {
-    if (result.stdout) {
-      process.stdout.write(result.stdout);
-    }
-    if (result.stderr) {
-      process.stderr.write(result.stderr);
-    }
     console.log(`[installMlDeps] Installed ML dependencies using ${pythonCommand}.`);
     process.exit(0);
   }
 
-  const details = [result.error?.message, result.stdout, result.stderr].filter(Boolean).join('\n').trim();
+  const details = [result.error?.message].filter(Boolean).join('\n').trim();
   lastFailure = `Command '${pythonCommand} -m pip install -r requirements-ml.txt' failed. ${details}`;
 }
 
-console.error(`[installMlDeps] ${lastFailure || 'No Python command succeeded.'}`);
-process.exit(1);
+const finalMessage = `[installMlDeps] ${lastFailure || 'No Python command succeeded.'}`;
+
+if (shouldFailBuild) {
+  console.error(finalMessage);
+  process.exit(1);
+}
+
+console.warn(`${finalMessage} Continuing build; runtime auto-install will handle missing ML deps.`);
+process.exit(0);

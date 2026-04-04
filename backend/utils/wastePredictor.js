@@ -17,6 +17,7 @@ let rejectWorkerReady = null;
 let autoInstallAttempted = false;
 let requestCounter = 0;
 const pendingRequests = new Map();
+let resolvedPythonCommand = null;
 
 function resetWorkerReadyState() {
   workerReadyPromise = null;
@@ -99,7 +100,34 @@ function rejectAllPending(message) {
 }
 
 function getPythonCommand() {
-  return process.env.PYTHON_BIN || 'python';
+  if (process.env.PYTHON_BIN) {
+    return process.env.PYTHON_BIN;
+  }
+
+  if (resolvedPythonCommand) {
+    return resolvedPythonCommand;
+  }
+
+  const candidates = process.platform === 'win32'
+    ? ['python', 'py']
+    : ['python', 'python3'];
+
+  for (const candidate of candidates) {
+    const probe = spawnSync(candidate, ['--version'], {
+      cwd: BACKEND_DIR,
+      encoding: 'utf-8',
+      stdio: 'pipe'
+    });
+
+    if (!probe.error && probe.status === 0) {
+      resolvedPythonCommand = candidate;
+      return candidate;
+    }
+  }
+
+  // Fall back to python for clearer downstream errors.
+  resolvedPythonCommand = 'python';
+  return resolvedPythonCommand;
 }
 
 function maybeInstallMlDependenciesFromError(errorText) {
@@ -116,28 +144,36 @@ function maybeInstallMlDependenciesFromError(errorText) {
     return false;
   }
 
-  const pythonCommand = getPythonCommand();
-  const installResult = spawnSync(
-    pythonCommand,
-    ['-m', 'pip', 'install', '--no-cache-dir', '-r', REQUIREMENTS_PATH],
-    {
-      cwd: BACKEND_DIR,
-      encoding: 'utf-8'
+  const preferredCommand = getPythonCommand();
+  const candidates = [preferredCommand, ...(process.platform === 'win32' ? ['python', 'py'] : ['python', 'python3'])]
+    .filter(Boolean)
+    .filter((value, index, list) => list.indexOf(value) === index);
+
+  let lastError = '';
+  for (const pythonCommand of candidates) {
+    const installResult = spawnSync(
+      pythonCommand,
+      ['-m', 'pip', 'install', '--no-cache-dir', '-r', REQUIREMENTS_PATH],
+      {
+        cwd: BACKEND_DIR,
+        encoding: 'utf-8'
+      }
+    );
+
+    if (!installResult.error && installResult.status === 0) {
+      resolvedPythonCommand = pythonCommand;
+      autoInstallAttempted = true;
+      return true;
     }
-  );
 
-  if (installResult.error) {
-    throw new Error(`Automatic ML dependency install failed: ${installResult.error.message}`);
+    const output = [installResult.error?.message, installResult.stdout, installResult.stderr]
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+    lastError = `Command '${pythonCommand} -m pip install -r requirements-ml.txt' failed. ${output}`;
   }
 
-  if (installResult.status !== 0) {
-    const output = [installResult.stdout, installResult.stderr].filter(Boolean).join('\n').trim();
-    throw new Error(`Automatic ML dependency install failed with exit code ${installResult.status}. ${output}`);
-  }
-
-  autoInstallAttempted = true;
-
-  return true;
+  throw new Error(`Automatic ML dependency install failed. ${lastError}`);
 }
 
 function handleWorkerMessage(message) {

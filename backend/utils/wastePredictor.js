@@ -110,7 +110,7 @@ function getPythonCommand() {
 
   const candidates = process.platform === 'win32'
     ? ['python', 'py']
-    : ['python', 'python3'];
+    : ['python3.12', 'python3.11', 'python3.10', 'python3', 'python'];
 
   for (const candidate of candidates) {
     const probe = spawnSync(candidate, ['--version'], {
@@ -130,6 +130,55 @@ function getPythonCommand() {
   return resolvedPythonCommand;
 }
 
+function runPipInstall(pythonCommand, args) {
+  return spawnSync(
+    pythonCommand,
+    ['-m', 'pip', 'install', '--no-cache-dir', ...args],
+    {
+      cwd: BACKEND_DIR,
+      encoding: 'utf-8'
+    }
+  );
+}
+
+function installMlDependenciesForCommand(pythonCommand) {
+  const primary = runPipInstall(pythonCommand, ['-r', REQUIREMENTS_PATH]);
+  if (!primary.error && primary.status === 0) {
+    return { ok: true, details: '' };
+  }
+
+  const primaryOutput = [primary.error?.message, primary.stdout, primary.stderr]
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+
+  const tfMissing = /No matching distribution found for\s+(?:tensorflow(?:-cpu)?|tf-nightly(?:-cpu)?)/i.test(primaryOutput);
+  if (!tfMissing) {
+    return {
+      ok: false,
+      details: `Command '${pythonCommand} -m pip install -r requirements-ml.txt' failed. ${primaryOutput}`
+    };
+  }
+
+  const fallbackAttempts = [
+    ['tensorflow-cpu==2.21.0', 'numpy', 'Pillow'],
+    ['tensorflow-cpu', 'numpy', 'Pillow'],
+    ['tf-nightly-cpu', 'numpy', 'Pillow']
+  ];
+
+  for (const packages of fallbackAttempts) {
+    const fallback = runPipInstall(pythonCommand, packages);
+    if (!fallback.error && fallback.status === 0) {
+      return { ok: true, details: '' };
+    }
+  }
+
+  return {
+    ok: false,
+    details: `TensorFlow install fallback failed for ${pythonCommand}. ${primaryOutput}`
+  };
+}
+
 function maybeInstallMlDependenciesFromError(errorText) {
   if (autoInstallAttempted || !fs.existsSync(REQUIREMENTS_PATH)) {
     return false;
@@ -139,38 +188,35 @@ function maybeInstallMlDependenciesFromError(errorText) {
   const missingModuleMatch = text.match(/No module named ['\"]([^'\"]+)['\"]/i);
   const missingModule = String(missingModuleMatch?.[1] || '').toLowerCase();
   const eligibleMissingModule = ['numpy', 'pil', 'tensorflow', 'keras'].includes(missingModule);
+  const eligibleCompatibilityError =
+    /Error when deserializing class/i.test(text) ||
+    /Unrecognized keyword arguments passed to Dense/i.test(text) ||
+    /quantization_config/i.test(text) ||
+    /No matching distribution found for\s+(?:tensorflow(?:-cpu)?|tf-nightly(?:-cpu)?)/i.test(text);
 
-  if (!eligibleMissingModule) {
+  if (!eligibleMissingModule && !eligibleCompatibilityError) {
     return false;
   }
 
   const preferredCommand = getPythonCommand();
-  const candidates = [preferredCommand, ...(process.platform === 'win32' ? ['python', 'py'] : ['python', 'python3'])]
+  const candidates = [
+    preferredCommand,
+    ...(process.platform === 'win32' ? ['python', 'py'] : ['python3.12', 'python3.11', 'python3.10', 'python3', 'python'])
+  ]
     .filter(Boolean)
     .filter((value, index, list) => list.indexOf(value) === index);
 
   let lastError = '';
   for (const pythonCommand of candidates) {
-    const installResult = spawnSync(
-      pythonCommand,
-      ['-m', 'pip', 'install', '--no-cache-dir', '-r', REQUIREMENTS_PATH],
-      {
-        cwd: BACKEND_DIR,
-        encoding: 'utf-8'
-      }
-    );
+    const installResult = installMlDependenciesForCommand(pythonCommand);
 
-    if (!installResult.error && installResult.status === 0) {
+    if (installResult.ok) {
       resolvedPythonCommand = pythonCommand;
       autoInstallAttempted = true;
       return true;
     }
 
-    const output = [installResult.error?.message, installResult.stdout, installResult.stderr]
-      .filter(Boolean)
-      .join('\n')
-      .trim();
-    lastError = `Command '${pythonCommand} -m pip install -r requirements-ml.txt' failed. ${output}`;
+    lastError = installResult.details;
   }
 
   throw new Error(`Automatic ML dependency install failed. ${lastError}`);

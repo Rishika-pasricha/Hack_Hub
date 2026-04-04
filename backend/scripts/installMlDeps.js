@@ -12,6 +12,20 @@ if (!fs.existsSync(REQUIREMENTS_PATH)) {
 
 const shouldFailBuild = process.env.FAIL_ON_ML_INSTALL === '1';
 
+function writeOutput(output, channel = 'stdout') {
+  const text = String(output || '');
+  if (!text.trim()) {
+    return;
+  }
+
+  if (channel === 'stderr') {
+    process.stderr.write(text);
+    return;
+  }
+
+  process.stdout.write(text);
+}
+
 function getPythonCandidates() {
   const candidates = [];
 
@@ -22,10 +36,65 @@ function getPythonCandidates() {
   if (process.platform === 'win32') {
     candidates.push('python', 'py');
   } else {
-    candidates.push('python', 'python3');
+    candidates.push('python3.12', 'python3.11', 'python3.10', 'python3', 'python');
   }
 
   return [...new Set(candidates)];
+}
+
+function runPipInstall(pythonCommand, args) {
+  const result = spawnSync(
+    pythonCommand,
+    ['-m', 'pip', 'install', '--no-cache-dir', ...args],
+    {
+      cwd: BACKEND_DIR,
+      encoding: 'utf-8',
+      stdio: 'pipe'
+    }
+  );
+
+  writeOutput(result.stdout, 'stdout');
+  writeOutput(result.stderr, 'stderr');
+
+  return result;
+}
+
+function installWithFallbacks(pythonCommand) {
+  const primary = runPipInstall(pythonCommand, ['-r', REQUIREMENTS_PATH]);
+  if (!primary.error && primary.status === 0) {
+    return { ok: true, details: '' };
+  }
+
+  const primaryOutput = [primary.error?.message, primary.stdout, primary.stderr]
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+
+  const tfMissing = /No matching distribution found for\s+(?:tensorflow(?:-cpu)?|tf-nightly(?:-cpu)?)/i.test(primaryOutput);
+  if (!tfMissing) {
+    return {
+      ok: false,
+      details: `Command '${pythonCommand} -m pip install -r requirements-ml.txt' failed. ${primaryOutput}`
+    };
+  }
+
+  const fallbackAttempts = [
+    ['tensorflow-cpu==2.21.0', 'numpy', 'Pillow'],
+    ['tensorflow-cpu', 'numpy', 'Pillow'],
+    ['tf-nightly-cpu', 'numpy', 'Pillow']
+  ];
+
+  for (const packages of fallbackAttempts) {
+    const fallback = runPipInstall(pythonCommand, packages);
+    if (!fallback.error && fallback.status === 0) {
+      return { ok: true, details: '' };
+    }
+  }
+
+  return {
+    ok: false,
+    details: `TensorFlow install fallback failed for ${pythonCommand}. ${primaryOutput}`
+  };
 }
 
 let lastFailure = '';
@@ -42,23 +111,13 @@ for (const pythonCommand of getPythonCandidates()) {
     continue;
   }
 
-  const result = spawnSync(
-    pythonCommand,
-    ['-m', 'pip', 'install', '--no-cache-dir', '-r', REQUIREMENTS_PATH],
-    {
-      cwd: BACKEND_DIR,
-      encoding: 'utf-8',
-      stdio: 'inherit'
-    }
-  );
-
-  if (!result.error && result.status === 0) {
+  const installResult = installWithFallbacks(pythonCommand);
+  if (installResult.ok) {
     console.log(`[installMlDeps] Installed ML dependencies using ${pythonCommand}.`);
     process.exit(0);
   }
 
-  const details = [result.error?.message].filter(Boolean).join('\n').trim();
-  lastFailure = `Command '${pythonCommand} -m pip install -r requirements-ml.txt' failed. ${details}`;
+  lastFailure = installResult.details;
 }
 
 const finalMessage = `[installMlDeps] ${lastFailure || 'No Python command succeeded.'}`;

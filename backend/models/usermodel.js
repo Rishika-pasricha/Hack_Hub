@@ -74,14 +74,12 @@ function dedupeIssueCompletionNotifications(entries) {
     return Array.from(latestByIssueId.values());
 }
 
-userSchema.pre('save', function dedupeNotifications(next) {
+userSchema.pre('save', function dedupeNotifications() {
     if (!this.isModified('issueCompletionNotifications')) {
-        next();
         return;
     }
 
     this.issueCompletionNotifications = dedupeIssueCompletionNotifications(this.issueCompletionNotifications || []);
-    next();
 });
 
 userSchema.index({ email: 1 }, { unique: true });

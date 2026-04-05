@@ -13,7 +13,4 @@ const municipalitySchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
-municipalitySchema.index({ contactEmail: 1 }, { unique: true });
-
 module.exports = mongoose.model('Municipality', municipalitySchema);

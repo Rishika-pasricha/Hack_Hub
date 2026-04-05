@@ -179,7 +179,11 @@ router.post('/register', async (req, res) => {
     } catch (err) {
         console.error('[register] Failed to create user', {
             message: err?.message,
+            name: err?.name,
             code: err?.code,
+            keyPattern: err?.keyPattern,
+            keyValue: err?.keyValue,
+            errors: err?.errors,
             requestId: req.requestId,
             stack: err?.stack
         });
@@ -189,7 +193,11 @@ router.post('/register', async (req, res) => {
         if (err && err.code === 121) {
             return res.status(500).json({ error: 'User record validation failed on database' });
         }
-        return res.status(500).json({ error: 'Failed to create user' });
+        return res.status(500).json({
+            error: 'Failed to create user',
+            details: err?.message || 'Unknown register error',
+            code: String(err?.code || err?.name || 'UNKNOWN')
+        });
     }
 });
 

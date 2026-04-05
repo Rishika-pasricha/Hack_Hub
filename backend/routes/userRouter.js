@@ -59,6 +59,29 @@ function isBase64MediaDataUrl(value) {
     return /^data:(image|video)\/[a-zA-Z0-9.+-]+;base64,/.test(normalized);
 }
 
+async function isValidUserPassword(user, plainPassword) {
+    const candidatePassword = String(plainPassword || '');
+    const storedHashes = [user?.passwordHash, user?.password]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean);
+
+    for (const storedValue of storedHashes) {
+        // Compare against bcrypt hashes first, then fallback to raw equality for legacy data.
+        if (storedValue.startsWith('$2a$') || storedValue.startsWith('$2b$') || storedValue.startsWith('$2y$')) {
+            if (await bcrypt.compare(candidatePassword, storedValue)) {
+                return true;
+            }
+            continue;
+        }
+
+        if (candidatePassword === storedValue) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 router.post('/waste/predict', async (req, res) => {
     const imageDataUrl = String(req.body?.imageDataUrl || '').trim();
 
@@ -140,7 +163,9 @@ router.post('/register', async (req, res) => {
             lastName,
             area: normalizedArea,
             email: normalizedEmail,
-            passwordHash
+            passwordHash,
+            // Keep legacy field populated for environments that still validate/store this key.
+            password: passwordHash
         });
         return res.status(201).json({
             id: user._id,
@@ -151,6 +176,12 @@ router.post('/register', async (req, res) => {
             profileImageUrl: user.profileImageUrl || ''
         });
     } catch (err) {
+        console.error('[register] Failed to create user', {
+            message: err?.message,
+            code: err?.code,
+            requestId: req.requestId,
+            stack: err?.stack
+        });
         if (err && err.code === 11000) {
             return res.status(409).json({ error: 'Email already registered' });
         }
@@ -235,7 +266,7 @@ router.post('/login', async (req, res) => {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
 
-        const isPasswordValid = await bcrypt.compare(String(password), user.passwordHash);
+        const isPasswordValid = await isValidUserPassword(user, password);
         
         if (!isPasswordValid) {
             return res.status(401).json({ error: 'Invalid email or password' });
@@ -251,6 +282,12 @@ router.post('/login', async (req, res) => {
             role: 'user'
         });
     } catch (err) {
+        console.error('[login] Failed to login', {
+            message: err?.message,
+            code: err?.code,
+            requestId: req.requestId,
+            stack: err?.stack
+        });
         return res.status(500).json({ error: 'Failed to login' });
     }
 });
@@ -1463,6 +1500,7 @@ router.post('/reset-password', async (req, res) => {
             { email: normalizedEmail },
             { 
                 passwordHash,
+                password: passwordHash,
                 otp: null,
                 otpExpiry: null
             }

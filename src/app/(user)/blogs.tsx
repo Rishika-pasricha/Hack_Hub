@@ -9,6 +9,9 @@ import { getApprovedBlogs, getLikeNotifications, getIssueCompletionNotifications
 import { BlogPost } from "../../types/community";
 import { useAuth } from "../../context/AuthContext";
 
+const BLOGS_REFRESH_INTERVAL_MS = 15000;
+const NOTIFICATIONS_REFRESH_INTERVAL_MS = 20000;
+
 type FeedVideoProps = {
   videoKey: string;
   uri: string;
@@ -178,7 +181,7 @@ export default function BlogsTab() {
     return chunks.map((chunk) => chunk[0]?.toUpperCase() || "").join("");
   };
 
-  const loadBlogs = async () => {
+  const loadBlogs = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -189,9 +192,9 @@ export default function BlogsTab() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.email]);
 
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
     if (!user?.email) {
       return;
     }
@@ -253,12 +256,25 @@ export default function BlogsTab() {
     } finally {
       setNotificationsLoading(false);
     }
-  };
+  }, [user?.email]);
 
   useEffect(() => {
-    loadBlogs();
-    loadNotifications();
-  }, [user?.email]);
+    void loadBlogs();
+    void loadNotifications();
+
+    const blogsIntervalId = setInterval(() => {
+      void loadBlogs();
+    }, BLOGS_REFRESH_INTERVAL_MS);
+
+    const notificationsIntervalId = setInterval(() => {
+      void loadNotifications();
+    }, NOTIFICATIONS_REFRESH_INTERVAL_MS);
+
+    return () => {
+      clearInterval(blogsIntervalId);
+      clearInterval(notificationsIntervalId);
+    };
+  }, [loadBlogs, loadNotifications]);
 
   useEffect(() => {
     const visibleVideoKeys = new Set<string>();

@@ -1,4 +1,8 @@
 {
   "json.schemaDownload.enable": false,
-  "typescript.tsserver.experimental.enableProjectDiagnostics": false
+  "typescript.tsserver.experimental.enableProjectDiagnostics": false,
+  "chat.tools.terminal.autoApprove": {
+    "npx expo-doctor": true,
+    "npx eas-cli@latest": true
+  }
 }

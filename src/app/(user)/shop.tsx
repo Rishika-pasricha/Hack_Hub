@@ -15,6 +15,8 @@ import { Product } from "../../types/community";
 import { useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+const PRODUCTS_REFRESH_INTERVAL_MS = 15000;
+
 export default function ShopTab() {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
@@ -40,7 +42,15 @@ export default function ShopTab() {
 
   useFocusEffect(
     useCallback(() => {
-      loadProducts();
+      void loadProducts();
+
+      const intervalId = setInterval(() => {
+        void loadProducts();
+      }, PRODUCTS_REFRESH_INTERVAL_MS);
+
+      return () => {
+        clearInterval(intervalId);
+      };
     }, [loadProducts])
   );
 

@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const Municipality = require('../models/municipalityModel');
 
 function parseCsvLine(line) {
@@ -34,7 +35,13 @@ function parseCsvLine(line) {
 }
 
 async function syncMunicipalitiesFromCsv() {
-  const defaultMunicipalityPassword = process.env.MUNICIPALITY_DEFAULT_PASSWORD || 'EcofyAdmin123';
+  const defaultMunicipalityPassword = process.env.MUNICIPALITY_DEFAULT_PASSWORD || '';
+  const generatedFallbackPassword = crypto.randomBytes(18).toString('base64url');
+
+  if (!defaultMunicipalityPassword) {
+    console.warn('MUNICIPALITY_DEFAULT_PASSWORD not set; using generated password only for newly inserted municipalities.');
+  }
+
   const csvPath = path.resolve(__dirname, '..', '..', 'municipality_dataset.csv');
   const csvText = fs.readFileSync(csvPath, 'utf8');
   const lines = csvText.split(/\r?\n/).filter(Boolean);
@@ -82,14 +89,18 @@ async function syncMunicipalitiesFromCsv() {
     await Municipality.updateOne(
       { contactEmail },
       {
-        district,
-        municipalityName,
-        municipalityType,
-        areaSqKm: Number.isFinite(areaSqKm) ? areaSqKm : 0,
-        population: Number.isFinite(population) ? population : 0,
-        contactEmail,
-        contactPhone,
-        adminPassword: defaultMunicipalityPassword
+        $set: {
+          district,
+          municipalityName,
+          municipalityType,
+          areaSqKm: Number.isFinite(areaSqKm) ? areaSqKm : 0,
+          population: Number.isFinite(population) ? population : 0,
+          contactEmail,
+          contactPhone
+        },
+        $setOnInsert: {
+          adminPassword: defaultMunicipalityPassword || generatedFallbackPassword
+        }
       },
       { upsert: true }
     );

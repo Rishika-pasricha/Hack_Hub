@@ -8,6 +8,8 @@ import { getMyIssues, resolveMyIssue } from "../../services/community";
 import { Issue } from "../../types/community";
 import { useAuth } from "../../context/AuthContext";
 
+const ISSUES_REFRESH_INTERVAL_MS = 15000;
+
 export default function IssuesTab() {
   const router = useRouter();
   const { user } = useAuth();
@@ -35,7 +37,15 @@ export default function IssuesTab() {
 
   useFocusEffect(
     useCallback(() => {
-      loadIssues();
+      void loadIssues();
+
+      const intervalId = setInterval(() => {
+        void loadIssues();
+      }, ISSUES_REFRESH_INTERVAL_MS);
+
+      return () => {
+        clearInterval(intervalId);
+      };
     }, [user?.email])
   );
 

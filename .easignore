@@ -1,0 +1,25 @@
+# Keep EAS uploads minimal and avoid sending non-mobile project files
+
+# Environment and local config
+.env
+.env.*
+backend/.env
+
+# Backend and data/model artifacts not needed for Expo mobile build
+backend/
+*.h5
+municipality_dataset.csv
+
+# Local tooling/cache
+.venv/
+.expo/
+node_modules/
+dist/
+web-build/
+
+# VCS and editor
+.git/
+.vscode/
+
+# Misc
+*.log

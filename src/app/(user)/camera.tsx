@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { useIsFocused } from "@react-navigation/native";
@@ -9,7 +9,7 @@ import { predictWaste } from "../../services/community";
 import { getErrorMessage } from "../../utils/errorLogger";
 
 type UiState = "idle" | "detecting" | "ready" | "error";
-const LIVE_SCAN_GAP_MS = 80;
+const LIVE_SCAN_GAP_MS = 1000;
 const CAPTURE_QUALITY = 0.35;
 const TARGET_IMAGE_SIZE = 224;
 
@@ -17,8 +17,8 @@ export default function CameraTab() {
   const cameraRef = useRef<CameraView | null>(null);
   const isAnalyzingRef = useRef(false);
   const isMountedRef = useRef(true);
-  const liveLoopTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const liveLoopSessionRef = useRef(0);
+  const liveLoopIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const appStateRef = useRef(AppState.currentState);
   const isFocused = useIsFocused();
   const [permission, requestPermission] = useCameraPermissions();
   const [uiState, setUiState] = useState<UiState>("idle");
@@ -26,15 +26,28 @@ export default function CameraTab() {
   const [confidence, setConfidence] = useState<number | null>(null);
   const [lastLatencyMs, setLastLatencyMs] = useState<number | null>(null);
   const [isLiveEnabled, setIsLiveEnabled] = useState(true);
+  const [isCameraReady, setIsCameraReady] = useState(false);
+  const [isAppActive, setIsAppActive] = useState(AppState.currentState === "active");
 
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
-      liveLoopSessionRef.current += 1;
-      if (liveLoopTimeoutRef.current) {
-        clearTimeout(liveLoopTimeoutRef.current);
+      if (liveLoopIntervalRef.current) {
+        clearInterval(liveLoopIntervalRef.current);
+        liveLoopIntervalRef.current = null;
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      appStateRef.current = nextAppState;
+      setIsAppActive(nextAppState === "active");
+    });
+
+    return () => {
+      subscription.remove();
     };
   }, []);
 
@@ -51,7 +64,6 @@ export default function CameraTab() {
       const snapshot = await cameraRef.current.takePictureAsync({
         base64: false,
         quality: CAPTURE_QUALITY,
-        skipProcessing: true,
         shutterSound: false
       });
 
@@ -96,63 +108,35 @@ export default function CameraTab() {
     }
   }, []);
 
-  const shouldRunLive = Boolean(permission?.granted && isLiveEnabled && isFocused);
-
-  const runLiveLoop = useCallback(async (sessionId: number) => {
-    if (
-      !isMountedRef.current ||
-      sessionId !== liveLoopSessionRef.current ||
-      !permission?.granted ||
-      !isLiveEnabled ||
-      !isFocused
-    ) {
-      return;
-    }
-
-    await captureAndPredict();
-
-    if (
-      !isMountedRef.current ||
-      sessionId !== liveLoopSessionRef.current ||
-      !permission?.granted ||
-      !isLiveEnabled ||
-      !isFocused
-    ) {
-      return;
-    }
-
-    liveLoopTimeoutRef.current = setTimeout(() => {
-      void runLiveLoop(sessionId);
-    }, LIVE_SCAN_GAP_MS);
-  }, [captureAndPredict, isFocused, isLiveEnabled, permission?.granted]);
+  const shouldRunLive = Boolean(permission?.granted && isLiveEnabled && isFocused && isCameraReady && isAppActive);
 
   useEffect(() => {
-    liveLoopSessionRef.current += 1;
-    const sessionId = liveLoopSessionRef.current;
+    if (!isFocused) {
+      setUiState("idle");
+    }
+  }, [isFocused]);
 
+  useEffect(() => {
     if (!shouldRunLive) {
-      if (liveLoopTimeoutRef.current) {
-        clearTimeout(liveLoopTimeoutRef.current);
-        liveLoopTimeoutRef.current = null;
+      if (liveLoopIntervalRef.current) {
+        clearInterval(liveLoopIntervalRef.current);
+        liveLoopIntervalRef.current = null;
       }
-
-      if (!isFocused && uiState !== "idle") {
-        setUiState("idle");
-      }
-
       return;
     }
 
-    void runLiveLoop(sessionId);
+    void captureAndPredict();
+    liveLoopIntervalRef.current = setInterval(() => {
+      void captureAndPredict();
+    }, LIVE_SCAN_GAP_MS);
 
     return () => {
-      liveLoopSessionRef.current += 1;
-      if (liveLoopTimeoutRef.current) {
-        clearTimeout(liveLoopTimeoutRef.current);
-        liveLoopTimeoutRef.current = null;
+      if (liveLoopIntervalRef.current) {
+        clearInterval(liveLoopIntervalRef.current);
+        liveLoopIntervalRef.current = null;
       }
     };
-  }, [isFocused, runLiveLoop, shouldRunLive, uiState]);
+  }, [captureAndPredict, shouldRunLive]);
 
   if (!permission) {
     return (
@@ -187,7 +171,14 @@ export default function CameraTab() {
         <Text style={styles.subtitle}>Hold waste in frame for automatic classification.</Text>
 
         <View style={styles.previewBox}>
-          <CameraView ref={cameraRef} style={styles.camera} facing="back" />
+          <CameraView
+            ref={cameraRef}
+            style={styles.camera}
+            facing="back"
+            onCameraReady={() => {
+              setIsCameraReady(true);
+            }}
+          />
 
           <View style={styles.predictionCard}>
             <Text style={styles.predictionState}>

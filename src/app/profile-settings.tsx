@@ -3,11 +3,15 @@ import { Alert, Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { PrimaryButton } from "../components/ui/PrimaryButton";
 import { TextField } from "../components/ui/TextField";
 import { colors, spacing, typography } from "../constants/theme";
 import { useAuth } from "../context/AuthContext";
 import { deleteAccount, updateProfile } from "../services/auth";
+import { logError } from "../utils/errorLogger";
+
+const FEATURE_TOUR_VERSION = "v1";
 
 export default function ProfileSettingsScreen() {
   const router = useRouter();
@@ -133,6 +137,21 @@ export default function ProfileSettingsScreen() {
     );
   };
 
+  const handleReplayWalkthrough = async () => {
+    if (!user?.id) {
+      return;
+    }
+
+    try {
+      const replayKey = `ecofy.walkthrough.replay.${FEATURE_TOUR_VERSION}.${user.id}`;
+      await AsyncStorage.setItem(replayKey, "1");
+      router.replace("/blogs");
+    } catch (error) {
+      logError("ProfileSettings.handleReplayWalkthrough", error);
+      setMessage("Could not replay walkthrough right now. Please try again.");
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -184,6 +203,7 @@ export default function ProfileSettingsScreen() {
           <Text style={styles.cardTitle}>Quick Access</Text>
           <PrimaryButton label="My Posts" onPress={() => router.push("/my-posts")} />
           <PrimaryButton label="Civic Hub" onPress={() => router.push("/settings")} />
+          <PrimaryButton label="Replay App Walkthrough" onPress={handleReplayWalkthrough} />
         </View>
 
         <View style={styles.card}>

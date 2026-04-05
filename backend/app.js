@@ -5,6 +5,7 @@ const mongoose = require('./config/db'); // Initialize MongoDB connection
 const { syncMunicipalitiesFromCsv } = require('./utils/municipalitySync');
 const { warmupWastePredictor } = require('./utils/wastePredictor');
 const { attachRequestContext, notFoundHandler, errorHandler } = require('./middlewares/errorHandler');
+const User = require('./models/usermodel');
 const app = express();
 const userRouter = require('./routes/userRouter');
 
@@ -31,10 +32,14 @@ process.on('uncaughtException', (error) => {
 
 mongoose.connection.once('open', async () => {
     try {
+        const indexResult = await User.syncIndexes();
+        const droppedIndexesCount = Array.isArray(indexResult) ? indexResult.length : 0;
+        console.log(`User index sync complete. Dropped stale indexes: ${droppedIndexesCount}`);
+
         const { upserts } = await syncMunicipalitiesFromCsv();
         console.log(`Municipality sync complete on startup. Upserted rows: ${upserts}`);
     } catch (err) {
-        console.error('Municipality sync failed on startup:', err.message);
+        console.error('Startup maintenance failed (index sync/municipality sync):', err.message);
     }
 });
 

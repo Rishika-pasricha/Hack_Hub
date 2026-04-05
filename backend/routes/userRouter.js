@@ -162,6 +162,7 @@ router.post('/register', async (req, res) => {
             firstName,
             lastName,
             area: normalizedArea,
+            district: normalizedArea,
             email: normalizedEmail,
             passwordHash,
             // Keep legacy field populated for environments that still validate/store this key.
@@ -184,6 +185,9 @@ router.post('/register', async (req, res) => {
         });
         if (err && err.code === 11000) {
             return res.status(409).json({ error: 'Email already registered' });
+        }
+        if (err && err.code === 121) {
+            return res.status(500).json({ error: 'User record validation failed on database' });
         }
         return res.status(500).json({ error: 'Failed to create user' });
     }
@@ -316,6 +320,7 @@ router.patch('/profile', async (req, res) => {
                 firstName,
                 lastName,
                 area,
+                district: area,
                 profileImageUrl
             },
             { new: true }

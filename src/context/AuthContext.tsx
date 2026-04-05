@@ -1,5 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import { AppState } from "react-native";
+import { validateSession } from "../services/auth";
 import { LoginResponse } from "../types/auth";
 import { logError } from "../utils/errorLogger";
 
@@ -67,6 +69,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     persistUser();
+  }, [user, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated || !user) {
+      return;
+    }
+
+    let active = true;
+
+    const verifyActiveSession = async () => {
+      if (!active) {
+        return;
+      }
+
+      if (!user.token) {
+        setUser(null);
+        return;
+      }
+
+      try {
+        const result = await validateSession({
+          email: user.email,
+          role: user.role,
+          token: user.token
+        });
+
+        if (!active) {
+          return;
+        }
+
+        if (!result.valid) {
+          setUser(null);
+        }
+      } catch (error) {
+        logError("AuthContext.verifyActiveSession", error, { email: user.email, role: user.role });
+      }
+    };
+
+    verifyActiveSession();
+
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        verifyActiveSession();
+      }
+    });
+
+    const interval = setInterval(() => {
+      verifyActiveSession();
+    }, 30000);
+
+    return () => {
+      active = false;
+      subscription.remove();
+      clearInterval(interval);
+    };
   }, [user, isHydrated]);
 
   const value = useMemo<AuthContextValue>(() => {

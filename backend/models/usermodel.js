@@ -9,6 +9,7 @@ const userSchema= new mongoose.Schema({
     profileImageUrl: { type: String, trim: true, default: '' },
     passwordHash: { type: String, required: true },
     password: { type: String },
+    sessionToken: { type: String, trim: true, default: null },
     otp: String,
     otpExpiry: Date,
     removedProductsCount: { type: Number, default: 0 },

@@ -7,6 +7,7 @@ const Product = require('../models/productModel');
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const { generateOTP, sendOTPEmail, sendIssueCompletionEmail } = require('../utils/emailService');
 const { isMunicipalityEmail } = require('../utils/municipalityEmails');
 const { predictWasteFromImage } = require('../utils/wastePredictor');
@@ -27,6 +28,10 @@ function isBase64ImageDataUrl(value) {
 function isBase64MediaDataUrl(value) {
     const normalized = String(value || '').trim();
     return /^data:(image|video)\/[a-zA-Z0-9.+-]+;base64,/.test(normalized);
+}
+
+function generateSessionToken() {
+    return crypto.randomBytes(32).toString('hex');
 }
 
 async function isValidUserPassword(user, plainPassword) {
@@ -232,13 +237,20 @@ router.post('/login', async (req, res) => {
                 return res.status(401).json({ error: 'Invalid email or password' });
             }
 
+            const sessionToken = generateSessionToken();
+            await Municipality.updateOne(
+                { _id: municipality._id },
+                { sessionToken }
+            );
+
             return res.status(200).json({
                 id: municipality._id,
                 firstName: municipality.municipalityName,
                 lastName: municipality.district,
                 email: municipality.contactEmail,
                 area: municipality.municipalityName,
-                role: 'admin'
+                role: 'admin',
+                token: sessionToken
             });
         }
 
@@ -254,6 +266,12 @@ router.post('/login', async (req, res) => {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
 
+        const sessionToken = generateSessionToken();
+        await usermodel.updateOne(
+            { _id: user._id },
+            { sessionToken }
+        );
+
         return res.status(200).json({
             id: user._id,
             firstName: user.firstName,
@@ -261,7 +279,8 @@ router.post('/login', async (req, res) => {
             email: user.email,
             area: user.area || user.district || '',
             profileImageUrl: user.profileImageUrl || '',
-            role: 'user'
+            role: 'user',
+            token: sessionToken
         });
     } catch (err) {
         console.error('[login] Failed to login', {
@@ -271,6 +290,36 @@ router.post('/login', async (req, res) => {
             stack: err?.stack
         });
         return res.status(500).json({ error: 'Failed to login' });
+    }
+});
+
+router.post('/session/validate', async (req, res) => {
+    const email = normalizeText(req.body.email).toLowerCase();
+    const role = normalizeText(req.body.role).toLowerCase();
+    const token = normalizeText(req.body.token);
+
+    if (!email || !role || !token) {
+        return res.status(400).json({ error: 'email, role and token are required' });
+    }
+
+    try {
+        if (role === 'admin') {
+            const municipality = await Municipality.findOne({ contactEmail: email }).select('sessionToken').lean();
+            if (!municipality || !municipality.sessionToken) {
+                return res.status(200).json({ valid: false });
+            }
+
+            return res.status(200).json({ valid: municipality.sessionToken === token });
+        }
+
+        const user = await usermodel.findOne({ email }).select('sessionToken').lean();
+        if (!user || !user.sessionToken) {
+            return res.status(200).json({ valid: false });
+        }
+
+        return res.status(200).json({ valid: user.sessionToken === token });
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to validate session' });
     }
 });
 

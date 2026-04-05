@@ -76,11 +76,14 @@ export default function RegisterScreen() {
     <SafeAreaView style={styles.flex}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 16 : 0}
       >
         <ScrollView
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          showsVerticalScrollIndicator={false}
         >
         <View style={styles.header}>
           <Text style={styles.title}>Create your account</Text>
@@ -197,9 +200,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background
   },
   container: {
+    flexGrow: 1,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.xxl,
-    paddingBottom: spacing.xxl
+    paddingBottom: spacing.xxl + spacing.lg
   },
   header: {
     marginBottom: spacing.xl

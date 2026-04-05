@@ -55,3 +55,10 @@ export function deleteAccount(userEmail: string) {
     body: { userEmail }
   });
 }
+
+export function validateSession(payload: { email: string; role: "user" | "admin"; token: string }) {
+  return apiRequest<{ valid: boolean }>("/session/validate", {
+    method: "POST",
+    body: payload
+  });
+}

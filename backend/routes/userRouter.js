@@ -11,36 +11,6 @@ const { generateOTP, sendOTPEmail, sendIssueCompletionEmail } = require('../util
 const { isMunicipalityEmail } = require('../utils/municipalityEmails');
 const { predictWasteFromImage } = require('../utils/wastePredictor');
 
-function wrapAsyncHandler(handler) {
-    if (typeof handler !== 'function') {
-        return handler;
-    }
-
-    // Keep dedicated Express error handlers untouched.
-    if (handler.length === 4) {
-        return handler;
-    }
-
-    return function wrappedHandler(req, res, next) {
-        try {
-            const result = handler(req, res, next);
-            if (result && typeof result.then === 'function') {
-                result.catch(next);
-            }
-        } catch (err) {
-            next(err);
-        }
-    };
-}
-
-['get', 'post', 'put', 'patch', 'delete'].forEach((method) => {
-    const original = router[method].bind(router);
-    router[method] = (path, ...handlers) => {
-        const wrapped = handlers.map((handler) => wrapAsyncHandler(handler));
-        return original(path, ...wrapped);
-    };
-});
-
 function normalizeText(input) {
     return String(input || '').trim();
 }

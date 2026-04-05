@@ -11,13 +11,48 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 
 export default function RootLayout() {
   useEffect(() => {
+    const globalObject = globalThis as {
+      onunhandledrejection?: ((event: unknown) => void) | null;
+      ErrorUtils?: {
+        getGlobalHandler?: () => ((error: unknown, isFatal?: boolean) => void) | undefined;
+        setGlobalHandler?: (handler: (error: unknown, isFatal?: boolean) => void) => void;
+      };
+    };
+
+    const previousUnhandledRejection = globalObject.onunhandledrejection;
+    globalObject.onunhandledrejection = (event: unknown) => {
+      const reason = (event as { reason?: unknown })?.reason ?? event;
+      logError("RootLayout.unhandledrejection", reason);
+
+      if (typeof previousUnhandledRejection === "function") {
+        previousUnhandledRejection(event);
+      }
+    };
+
+    const previousGlobalErrorHandler = globalObject.ErrorUtils?.getGlobalHandler?.();
+    if (globalObject.ErrorUtils?.setGlobalHandler) {
+      globalObject.ErrorUtils.setGlobalHandler((error: unknown, isFatal?: boolean) => {
+        logError("RootLayout.globalError", error, { isFatal: Boolean(isFatal) });
+
+        if (typeof previousGlobalErrorHandler === "function") {
+          previousGlobalErrorHandler(error, isFatal);
+        }
+      });
+    }
+
     const timer = setTimeout(() => {
       SplashScreen.hideAsync().catch(() => {
         logError("RootLayout.hideAsync", new Error("Failed to hide splash screen"));
       });
     }, 4000);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      globalObject.onunhandledrejection = previousUnhandledRejection;
+      if (globalObject.ErrorUtils?.setGlobalHandler && previousGlobalErrorHandler) {
+        globalObject.ErrorUtils.setGlobalHandler(previousGlobalErrorHandler);
+      }
+    };
   }, []);
 
   return (

@@ -28,7 +28,9 @@ export function getApprovedBlogs(municipalityEmail?: string, userEmail?: string)
     params.set("userEmail", userEmail);
   }
   const query = params.toString() ? `?${params.toString()}` : "";
-  return apiRequest<BlogPost[]>(`/blogs${query}`);
+  return apiRequest<BlogPost[]>(`/blogs${query}`, {
+    timeoutMs: 45000
+  });
 }
 
 export function toggleBlogLike(blogId: string, userEmail: string) {
@@ -120,7 +122,9 @@ export function getLikeNotifications(userEmail: string) {
       message: string;
       createdAt: string;
     }>
-  >(`/notifications/likes?userEmail=${encodeURIComponent(userEmail)}`);
+  >(`/notifications/likes?userEmail=${encodeURIComponent(userEmail)}`, {
+    timeoutMs: 45000
+  });
 }
 
 export function reportProduct(
@@ -166,7 +170,9 @@ export function getIssueCompletionNotifications(userEmail: string) {
     message: string;
     read: boolean;
     createdAt: string;
-  }>>(`/notifications/issue-completion?userEmail=${encodeURIComponent(userEmail)}`);
+  }>>(`/notifications/issue-completion?userEmail=${encodeURIComponent(userEmail)}`, {
+    timeoutMs: 45000
+  });
 }
 
 export function markIssueNotificationAsRead(issueId: string, userEmail: string) {

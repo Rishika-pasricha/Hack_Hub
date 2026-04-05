@@ -26,7 +26,12 @@ export function getErrorMessage(error: unknown, fallback = "Something went wrong
   return fallback;
 }
 
-export function logError(context: string, error: unknown) {
+export function logError(context: string, error: unknown, metadata?: Record<string, unknown>) {
   const message = getErrorMessage(error, "Unknown error");
-  console.error(`[${context}] ${message}`);
+  const timestamp = new Date().toISOString();
+  if (metadata && Object.keys(metadata).length > 0) {
+    console.error(`[${timestamp}] [${context}] ${message}`, metadata);
+    return;
+  }
+  console.error(`[${timestamp}] [${context}] ${message}`);
 }
